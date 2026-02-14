@@ -41,16 +41,18 @@ interface GameStore {
   selectLine: (id: string | null) => void;
   setTerminus: (lineId: string, startStationId: string | null, endStationId: string | null, isLoop: boolean) => void;
 
-  addStation: (station: Omit<Station, 'id'>) => void;
+  addStation: (station: Omit<Station, 'id'>, addToLine?: boolean) => void;
   updateStation: (id: string, updates: Partial<Station>) => void;
   removeStation: (id: string) => void;
   moveStation: (id: string, position: Position) => void;
 
   addLinePath: (lineId: string, points: Position[]) => void;
   removeLinePath: (lineId: string, pathId: string) => void;
+  updateLinePath: (lineId: string, pathId: string, points: Position[]) => void;
+  removePathsByStation: (stationId: string) => void;
 
   selectTool: (tool: ToolType | null) => void;
-  selectElement: (id: string | null, type: 'station' | 'line' | null) => void;
+  selectElement: (id: string | null, type: 'station' | 'line' | 'path' | null) => void;
 
   setCanvasOffset: (offset: Position) => void;
   setZoom: (zoom: number) => void;
@@ -422,18 +424,18 @@ export const useGameStore = create<GameStore>()(
         get().checkProgress();
       },
 
-      addStation: (station: Omit<Station, 'id'>) => {
+      addStation: (station: Omit<Station, 'id'>, addToLine: boolean = true) => {
         const { currentProject, selectedLineId, achievements } = get();
         if (!currentProject || !selectedLineId) return;
 
         const newStation: Station = {
           ...station,
           id: generateId(),
-          lines: [selectedLineId]
+          lines: addToLine ? [selectedLineId] : []
         };
 
         const updatedLines = currentProject.lines.map(line =>
-          line.id === selectedLineId
+          line.id === selectedLineId && addToLine
             ? { ...line, stations: [...line.stations, newStation.id] }
             : line
         );
@@ -487,13 +489,24 @@ export const useGameStore = create<GameStore>()(
         const { currentProject } = get();
         if (!currentProject) return;
 
+        const station = currentProject.stations.find(s => s.id === id);
+
         set({
           currentProject: {
             ...currentProject,
             stations: currentProject.stations.filter(station => station.id !== id),
             lines: currentProject.lines.map(line => ({
               ...line,
-              stations: line.stations.filter(stationId => stationId !== id)
+              stations: line.stations.filter(stationId => stationId !== id),
+              // 同时删除与该站点相连的轨道
+              paths: station ? line.paths.filter(path => {
+                const startPoint = path.points[0];
+                const endPoint = path.points[path.points.length - 1];
+                const isConnectedToStation =
+                  (startPoint.x === station.position.x && startPoint.y === station.position.y) ||
+                  (endPoint.x === station.position.x && endPoint.y === station.position.y);
+                return !isConnectedToStation;
+              }) : line.paths
             })),
             updatedAt: new Date()
           },
@@ -506,12 +519,47 @@ export const useGameStore = create<GameStore>()(
         const { currentProject } = get();
         if (!currentProject) return;
 
+        const oldStation = currentProject.stations.find(s => s.id === id);
+        if (!oldStation) return;
+
+        const oldPosition = oldStation.position;
+
         set({
           currentProject: {
             ...currentProject,
             stations: currentProject.stations.map(station =>
               station.id === id ? { ...station, position } : station
             ),
+            // 更新与该站点相连的轨道的坐标
+            lines: currentProject.lines.map(line => ({
+              ...line,
+              paths: line.paths.map(path => {
+                // 检查路径的起点或终点是否与被移动站点相连
+                const startPoint = path.points[0];
+                const endPoint = path.points[path.points.length - 1];
+                const isStartConnected = startPoint.x === oldPosition.x && startPoint.y === oldPosition.y;
+                const isEndConnected = endPoint.x === oldPosition.x && endPoint.y === oldPosition.y;
+
+                if (!isStartConnected && !isEndConnected) {
+                  return path;
+                }
+
+                // 更新路径的坐标
+                const newPoints = path.points.map((point, index) => {
+                  if (index === 0 && isStartConnected) {
+                    return position;
+                  }
+                  if (index === path.points.length - 1 && isEndConnected) {
+                    return position;
+                  }
+                  // 中间的点如果是折线，也需要相应移动
+                  // 这里简化处理，只移动起点和终点
+                  return point;
+                });
+
+                return { ...path, points: newPoints };
+              })
+            })),
             updatedAt: new Date()
           }
         });
@@ -553,6 +601,55 @@ export const useGameStore = create<GameStore>()(
                 ? { ...line, paths: line.paths.filter(p => p.id !== pathId) }
                 : line
             ),
+            updatedAt: new Date()
+          }
+        });
+      },
+
+      updateLinePath: (lineId: string, pathId: string, points: Position[]) => {
+        const { currentProject } = get();
+        if (!currentProject) return;
+
+        set({
+          currentProject: {
+            ...currentProject,
+            lines: currentProject.lines.map(line =>
+              line.id === lineId
+                ? {
+                    ...line,
+                    paths: line.paths.map(p =>
+                      p.id === pathId ? { ...p, points } : p
+                    )
+                  }
+                : line
+            ),
+            updatedAt: new Date()
+          }
+        });
+      },
+
+      removePathsByStation: (stationId: string) => {
+        const { currentProject } = get();
+        if (!currentProject) return;
+
+        const station = currentProject.stations.find(s => s.id === stationId);
+        if (!station) return;
+
+        set({
+          currentProject: {
+            ...currentProject,
+            lines: currentProject.lines.map(line => ({
+              ...line,
+              paths: line.paths.filter(path => {
+                // 检查路径的起点或终点是否与被删除站点相连
+                const startPoint = path.points[0];
+                const endPoint = path.points[path.points.length - 1];
+                const isConnectedToStation =
+                  (startPoint.x === station.position.x && startPoint.y === station.position.y) ||
+                  (endPoint.x === station.position.x && endPoint.y === station.position.y);
+                return !isConnectedToStation;
+              })
+            })),
             updatedAt: new Date()
           }
         });
