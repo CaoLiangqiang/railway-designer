@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { 
+import {
   PlusCircle,
   FolderOpen,
   Download,
@@ -12,10 +12,11 @@ import {
   Minus,
   Plus,
   Train,
-  X
+  X,
+  Route
 } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
-import type { LineStyle, StationStyle, Station } from '../types';
+import type { LineStyle, StationStyle, Station, Position } from '../types';
 import { cityStyles, getDefaultLineColor } from '../constants/cityStyles';
 
 const stationStyles: { style: StationStyle; label: string; icon: string }[] = [
@@ -38,6 +39,10 @@ const Toolbar: React.FC = () => {
   const [startTerminus, setStartTerminus] = useState<string>('');
   const [endTerminus, setEndTerminus] = useState<string>('');
   const [isLoopLine, setIsLoopLine] = useState(false);
+  const [showTrackDialog, setShowTrackDialog] = useState(false);
+  const [trackStartStation, setTrackStartStation] = useState<string>('');
+  const [trackEndStation, setTrackEndStation] = useState<string>('');
+  const [trackLineId, setTrackLineId] = useState<string>('');
 
   const {
     selectedTool,
@@ -57,7 +62,10 @@ const Toolbar: React.FC = () => {
     stopSimulation,
     exportProject,
     importProject,
-    setZoom
+    setZoom,
+    addLinePath,
+    removeLinePath,
+    updateLinePath
   } = useGameStore();
 
   const handleCreateProject = () => {
@@ -70,10 +78,19 @@ const Toolbar: React.FC = () => {
 
   const handleAddLine = () => {
     if (newLineName.trim() && currentProject) {
+      // 检查是否已存在同名线路
+      const existingLine = currentProject.lines.find(
+        l => l.name.toLowerCase() === newLineName.trim().toLowerCase()
+      );
+      if (existingLine) {
+        alert(`已存在名为"${newLineName.trim()}"的线路，请使用其他名称`);
+        return;
+      }
+
       const style = cityStyles.find(s => s.id === selectedStyle);
       const lineCount = currentProject.lines.length;
       const defaultColor = style ? getDefaultLineColor(style.id, lineCount) : newLineColor;
-      
+
       addLine(newLineName.trim(), defaultColor, selectedStyle);
       setNewLineName('');
       setNewLineColor('#3B82F6');
@@ -122,7 +139,120 @@ const Toolbar: React.FC = () => {
   const handleDeleteSelected = () => {
     if (selectedElementId && selectedElementType === 'station') {
       removeStation(selectedElementId);
+    } else if (selectedElementId && selectedElementType === 'path' && selectedLineId) {
+      removeLinePath(selectedLineId, selectedElementId);
+      selectElement(null, null);
     }
+  };
+
+  const handleChangePathShape = (shape: 'straight' | 'single-bend' | 'double-bend') => {
+    if (!selectedElementId || !selectedLineId || !currentProject) return;
+
+    const line = currentProject.lines.find(l => l.id === selectedLineId);
+    const path = line?.paths.find(p => p.id === selectedElementId);
+    if (!path || path.points.length < 2) return;
+
+    const startPoint = path.points[0];
+    const endPoint = path.points[path.points.length - 1];
+
+    let newPoints: Position[] = [startPoint];
+
+    if (shape === 'straight') {
+      // 直线：只有起点和终点
+      newPoints = [startPoint, endPoint];
+    } else if (shape === 'single-bend') {
+      // 一次折线：在中间某处转折
+      // 判断是水平转折还是垂直转折
+      const dx = Math.abs(endPoint.x - startPoint.x);
+      const dy = Math.abs(endPoint.y - startPoint.y);
+
+      if (dx > dy) {
+        // 水平方向更长，先水平后垂直
+        newPoints = [startPoint, { x: endPoint.x, y: startPoint.y }, endPoint];
+      } else {
+        // 垂直方向更长，先垂直后水平
+        newPoints = [startPoint, { x: startPoint.x, y: endPoint.y }, endPoint];
+      }
+    } else if (shape === 'double-bend') {
+      // 两次折线：在中间形成两个转折
+      const midX = (startPoint.x + endPoint.x) / 2;
+      const midY = (startPoint.y + endPoint.y) / 2;
+
+      // 判断主要方向
+      const dx = Math.abs(endPoint.x - startPoint.x);
+      const dy = Math.abs(endPoint.y - startPoint.y);
+
+      if (dx > dy) {
+        // 水平为主，先水平到中点，垂直，再水平
+        newPoints = [startPoint, { x: midX, y: startPoint.y }, { x: midX, y: endPoint.y }, endPoint];
+      } else {
+        // 垂直为主，先垂直到中点，水平，再垂直
+        newPoints = [startPoint, { x: startPoint.x, y: midY }, { x: endPoint.x, y: midY }, endPoint];
+      }
+    }
+
+    updateLinePath(selectedLineId, selectedElementId, newPoints);
+  };
+
+  const handleBuildTrack = () => {
+    if (!currentProject || !trackStartStation || !trackEndStation || !trackLineId) return;
+
+    // 检查是否已存在相同的轨道（相同的起点、终点和线路）
+    const startStation = currentProject.stations.find(s => s.id === trackStartStation);
+    const endStation = currentProject.stations.find(s => s.id === trackEndStation);
+    const line = currentProject.lines.find(l => l.id === trackLineId);
+
+    if (!startStation || !endStation || !line) return;
+
+    // 检查是否已存在连接这两个站点的路径（同名同色检查）
+    const existingPath = line.paths.find(path => {
+      const pathPoints = path.points;
+      if (pathPoints.length < 2) return false;
+      const startMatch =
+        (pathPoints[0].x === startStation.position.x && pathPoints[0].y === startStation.position.y) ||
+        (pathPoints[0].x === endStation.position.x && pathPoints[0].y === endStation.position.y);
+      const endMatch =
+        (pathPoints[pathPoints.length - 1].x === startStation.position.x && pathPoints[pathPoints.length - 1].y === startStation.position.y) ||
+        (pathPoints[pathPoints.length - 1].x === endStation.position.x && pathPoints[pathPoints.length - 1].y === endStation.position.y);
+      return startMatch && endMatch;
+    });
+
+    if (existingPath) {
+      alert(`【${line.name}】已存在连接这两个站点的轨道`);
+      return;
+    }
+
+    // 检查站点是否已经在该线路中，如果不在则添加
+    const startInLine = line.stations.includes(startStation.id);
+    const endInLine = line.stations.includes(endStation.id);
+
+    // 创建轨道连接
+    addLinePath(trackLineId, [startStation.position, endStation.position]);
+
+    // 将站点添加到线路中（如果不在的话）
+    if (!startInLine || !endInLine) {
+      const { updateLine } = useGameStore.getState();
+      const updatedStations = [...line.stations];
+      if (!startInLine) updatedStations.push(startStation.id);
+      if (!endInLine) updatedStations.push(endStation.id);
+      updateLine(line.id, { stations: updatedStations });
+    }
+
+    // 更新站点的线路列表（支持多线路）
+    if (!startStation.lines.includes(trackLineId)) {
+      const { updateStation } = useGameStore.getState();
+      updateStation(startStation.id, { lines: [...startStation.lines, trackLineId] });
+    }
+    if (!endStation.lines.includes(trackLineId)) {
+      const { updateStation } = useGameStore.getState();
+      updateStation(endStation.id, { lines: [...endStation.lines, trackLineId] });
+    }
+
+    // 关闭对话框并重置状态
+    setShowTrackDialog(false);
+    setTrackStartStation('');
+    setTrackEndStation('');
+    setTrackLineId('');
   };
 
   const currentStyle = cityStyles.find(s => s.id === selectedStyle);
@@ -413,6 +543,23 @@ const Toolbar: React.FC = () => {
                 </div>
               </div>
 
+              {/* Build Track Button */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase">轨道建设</h3>
+                <button
+                  onClick={() => {
+                    setShowTrackDialog(true);
+                    setTrackStartStation('');
+                    setTrackEndStation('');
+                    setTrackLineId(selectedLineId || '');
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-gray-200 hover:border-gray-300 transition-all"
+                >
+                  <Route className="w-5 h-5 text-gray-600" />
+                  <span className="text-sm font-medium">建设轨道</span>
+                </button>
+              </div>
+
               {/* Selected Element Actions */}
               {selectedElementId && (
                 <div className="border-t border-gray-200 pt-4">
@@ -424,6 +571,36 @@ const Toolbar: React.FC = () => {
                     >
                       <Trash2 className="w-4 h-4" />
                       删除
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Path Shape Control */}
+              {selectedElementId && selectedElementType === 'path' && currentProject && selectedLineId && (
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="text-xs font-semibold text-gray-500 mb-2 uppercase">轨道形状</h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => handleChangePathShape('straight')}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="text-lg">➖</span>
+                      <span className="text-sm">直线</span>
+                    </button>
+                    <button
+                      onClick={() => handleChangePathShape('single-bend')}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="text-lg">└</span>
+                      <span className="text-sm">一次折线</span>
+                    </button>
+                    <button
+                      onClick={() => handleChangePathShape('double-bend')}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="text-lg">├</span>
+                      <span className="text-sm">两次折线</span>
                     </button>
                   </div>
                 </div>
@@ -735,6 +912,82 @@ const Toolbar: React.FC = () => {
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 font-medium"
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Build Track Modal */}
+      {showTrackDialog && currentProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-96 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">建设轨道</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  起点站点
+                </label>
+                <select
+                  value={trackStartStation}
+                  onChange={(e) => setTrackStartStation(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择起点站点</option>
+                  {currentProject.stations.map((station) => (
+                    <option key={station.id} value={station.id}>{station.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  终点站点
+                </label>
+                <select
+                  value={trackEndStation}
+                  onChange={(e) => setTrackEndStation(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择终点站点</option>
+                  {currentProject.stations.map((station) => (
+                    <option key={station.id} value={station.id}>{station.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  所属线路
+                </label>
+                <select
+                  value={trackLineId}
+                  onChange={(e) => setTrackLineId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择线路</option>
+                  {currentProject.lines.map((line) => (
+                    <option key={line.id} value={line.id}>{line.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowTrackDialog(false);
+                  setTrackStartStation('');
+                  setTrackEndStation('');
+                  setTrackLineId('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleBuildTrack}
+                disabled={!trackStartStation || !trackEndStation || !trackLineId}
+                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 font-medium"
+              >
+                建设
               </button>
             </div>
           </div>

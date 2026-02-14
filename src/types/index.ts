@@ -92,7 +92,7 @@ export interface GameState {
   currentProject: DesignProject | null;
   selectedTool: ToolType | null;
   selectedElementId: string | null;
-  selectedElementType: 'station' | 'line' | null;
+  selectedElementType: 'station' | 'line' | 'path' | null;
   selectedLineId: string | null;
   isPlaying: boolean;
   tasks: Task[];

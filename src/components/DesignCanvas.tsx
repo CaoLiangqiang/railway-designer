@@ -18,6 +18,9 @@ const DesignCanvas: React.FC = () => {
   const [newStationPos, setNewStationPos] = useState<Position | null>(null);
   const [stationName, setStationName] = useState('');
   const [isTransfer, setIsTransfer] = useState(false);
+  const [autoConnect, setAutoConnect] = useState(true);
+  const [showConnectDialog, setShowConnectDialog] = useState(false);
+  const [existingStation, setExistingStation] = useState<Station | null>(null);
 
   const {
     currentProject,
@@ -63,15 +66,43 @@ const DesignCanvas: React.FC = () => {
   }, [currentProject, selectedTool, isPlaying, screenToCanvas, snapToGrid]);
 
   const handleAddStation = () => {
-    if (newStationPos && stationName.trim() && selectedLineId) {
+    if (newStationPos && stationName.trim() && selectedLineId && currentProject) {
+      const trimmedName = stationName.trim();
+
+      // 检查整个项目中是否已有同名站点（不限于当前线路）
+      const duplicateStation = currentProject.stations.find(
+        s => s.name === trimmedName
+      );
+
+      if (duplicateStation) {
+        // 发现同名站点，显示连接确认对话框
+        setExistingStation(duplicateStation);
+        setShowConnectDialog(true);
+        return;
+      }
+
+      // 获取当前线路的最后一个站点（用于自动连接）
+      const currentLine = currentProject.lines.find(l => l.id === selectedLineId);
+      const lastStationId = currentLine?.stations[currentLine.stations.length - 1];
+      const lastStation = lastStationId ? currentProject.stations.find(s => s.id === lastStationId) : null;
+
+      // 没有同名站点，正常添加
+      // 根据自动连接开关决定是否将站点加入线路
       addStation({
-        name: stationName.trim(),
+        name: trimmedName,
         position: newStationPos,
         style: isTransfer ? 'shmetro-int' : 'shmetro-basic',
         lines: [selectedLineId],
         isTransfer,
         isTerminus: false
-      });
+      }, autoConnect);
+
+      // 如果开启自动连接且存在前一个站点，则创建路径
+      if (autoConnect && lastStation) {
+        const { addLinePath } = useGameStore.getState();
+        addLinePath(selectedLineId, [lastStation.position, newStationPos]);
+      }
+
       setShowStationDialog(false);
       setNewStationPos(null);
       setStationName('');
@@ -122,11 +153,20 @@ const DesignCanvas: React.FC = () => {
   }, [selectedTool, selectElement]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const { removeStation, selectedElementId, selectedElementType } = useGameStore.getState();
-    
+    const { removeStation, removeLinePath, selectedElementId, selectedElementType, currentProject } = useGameStore.getState();
+
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (selectedElementId && selectedElementType === 'station') {
         removeStation(selectedElementId);
+      } else if (selectedElementId && selectedElementType === 'path' && currentProject) {
+        // 找到轨道所属的线路
+        const lineWithPath = currentProject.lines.find(line =>
+          line.paths.some(path => path.id === selectedElementId)
+        );
+        if (lineWithPath) {
+          removeLinePath(lineWithPath.id, selectedElementId);
+          selectElement(null, null);
+        }
       }
     } else if (e.key === 'Escape') {
       selectElement(null, null);
@@ -220,41 +260,55 @@ const DesignCanvas: React.FC = () => {
     );
   };
 
-  const renderLine = (line: Line) => {
-    const style = getCityStyle(line.style);
-    const lineWidth = style?.lineWidth || 8;
+  // 计算两个站点之间的所有轨道（用于确定线条粗细）
+  const getPathCountBetweenStations = (startPos: Position, endPos: Position) => {
+    if (!currentProject) return 1;
 
-    const lineStations = line.stations
-      .map(id => currentProject?.stations.find(s => s.id === id))
-      .filter((s): s is Station => s !== undefined);
+    let count = 0;
+    currentProject.lines.forEach(line => {
+      line.paths.forEach(path => {
+        const pathStart = path.points[0];
+        const pathEnd = path.points[path.points.length - 1];
+        const startMatch =
+          (pathStart.x === startPos.x && pathStart.y === startPos.y) ||
+          (pathStart.x === endPos.x && pathStart.y === endPos.y);
+        const endMatch =
+          (pathEnd.x === startPos.x && pathEnd.y === startPos.y) ||
+          (pathEnd.x === endPos.x && pathEnd.y === endPos.y);
+        if (startMatch && endMatch) {
+          count++;
+        }
+      });
+    });
+    return Math.max(1, count);
+  };
 
-    // 如果没有站点，不渲染线路
-    if (lineStations.length === 0) return null;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const renderLine = (_line: Line) => {
+    // 只渲染线路的标识，不渲染自动连线
+    // 所有的轨道都通过 renderAllPaths 渲染
+    return null;
+  };
 
-    // 构建路径数据
-    let pathData = '';
-    if (lineStations.length === 1) {
-      // 只有一个站点时，画一个小圆点表示起点
-      const s = lineStations[0];
-      pathData = `M ${s.position.x - 5} ${s.position.y} L ${s.position.x + 5} ${s.position.y}`;
-    } else {
-      pathData = lineStations.reduce((acc, station, index) => {
-        if (index === 0) return `M ${station.position.x} ${station.position.y}`;
-        return `${acc} L ${station.position.x} ${station.position.y}`;
-      }, '');
-    }
+  // 单独渲染所有轨道（用于处理多条轨道的情况）
+  const renderAllPaths = () => {
+    if (!currentProject) return null;
 
-    return (
-      <g key={line.id}>
-        <path
-          d={pathData}
-          fill="none"
-          stroke={line.color}
-          strokeWidth={lineWidth}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {line.paths.map(path => (
+    return currentProject.lines.map(line => {
+      const style = getCityStyle(line.style);
+      const baseLineWidth = style?.lineWidth || 8;
+
+      return line.paths.map(path => {
+        const isSelected = selectedElementId === path.id && selectedElementType === 'path';
+        const startPos = path.points[0];
+        const endPos = path.points[path.points.length - 1];
+
+        // 计算两个站点之间的轨道数量
+        const pathCount = getPathCountBetweenStations(startPos, endPos);
+        // 根据轨道数量调整线条粗细
+        const lineWidth = Math.max(3, baseLineWidth - (pathCount - 1) * 2);
+
+        return (
           <path
             key={path.id}
             d={path.points.reduce((acc, point, index) => {
@@ -262,14 +316,22 @@ const DesignCanvas: React.FC = () => {
               return `${acc} L ${point.x} ${point.y}`;
             }, '')}
             fill="none"
-            stroke={line.color}
-            strokeWidth={lineWidth}
+            stroke={isSelected ? '#3B82F6' : line.color}
+            strokeWidth={isSelected ? lineWidth + 4 : lineWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
+            className="cursor-pointer hover:opacity-80"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectedTool?.type === 'select') {
+                selectElement(path.id, 'path');
+              }
+            }}
+            style={{ pointerEvents: 'stroke' }}
           />
-        ))}
-      </g>
-    );
+        );
+      });
+    });
   };
 
   if (!currentProject) {
@@ -330,7 +392,10 @@ const DesignCanvas: React.FC = () => {
           
           {/* Lines */}
           {currentProject.lines.map(renderLine)}
-          
+
+          {/* Paths (单独渲染，用于处理多条轨道的情况) */}
+          {renderAllPaths()}
+
           {/* Stations */}
           {currentProject.stations.map(renderStation)}
           
@@ -403,6 +468,22 @@ const DesignCanvas: React.FC = () => {
                   <span className="text-sm text-gray-700">换乘站</span>
                 </label>
               </div>
+              {/* iOS Style Toggle for Auto Connect */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-700">自动连接至前一站点</span>
+                <button
+                  onClick={() => setAutoConnect(!autoConnect)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    autoConnect ? 'bg-blue-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      autoConnect ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
             <div className="flex gap-2 mt-6">
               <button
@@ -421,6 +502,37 @@ const DesignCanvas: React.FC = () => {
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 font-medium"
               >
                 添加
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Connect to Existing Station Dialog */}
+      {showConnectDialog && existingStation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-96 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <span className="text-xl">⚠️</span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-800">站点名称已存在</h3>
+            </div>
+            <p className="text-gray-600 mb-4">
+              已存在名为"<span className="font-semibold text-gray-800">{existingStation.name}</span>"的站点。
+            </p>
+            <p className="text-gray-600 mb-6">
+              请使用其他名称创建站点。
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowConnectDialog(false);
+                  setExistingStation(null);
+                }}
+                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium"
+              >
+                知道了
               </button>
             </div>
           </div>

@@ -11,6 +11,7 @@
 - **多城市风格支持**：上海、北京、广州、港铁、东京等多种地铁风格
 - **线路管理**：创建多条线路，每条线路独立设置颜色和名称
 - **站点设计**：支持普通站和换乘站两种类型
+- **轨道建设**：支持直线、一次折线、两次折线三种轨道形状
 - **终点站设置**：支持往返线和环线两种运行模式
 - **列车模拟**：实时观看列车在线路上运行
 - **项目导出/导入**：保存和分享你的设计作品
@@ -77,24 +78,35 @@ npm run electron:dev
 
 ### 2. 添加线路
 - 在"线路"标签页点击"添加线路"
-- 输入线路名称
+- 输入线路名称（不能重复）
 - 从预设颜色中选择线路颜色
 
 ### 3. 添加站点
 - 在"站点"标签页选择站点类型
 - 在画布上点击放置站点
-- 站点会自动关联到当前选中的线路
+- 使用"自动连接至前一站点"开关控制是否自动连线
+- 站点名称在整个项目中不能重复
 
-### 4. 设置终点站
+### 4. 建设轨道
+- 在"站点"标签页点击"建设轨道"
+- 选择起点站点、终点站点和所属线路
+- 同一线路在两个站点间只能有一条轨道
+
+### 5. 编辑轨道
+- 使用"选择"工具点击轨道
+- 在"轨道形状"区域切换形状（直线/一次折线/两次折线）
+- 按 Delete 键删除选中的轨道
+
+### 6. 设置终点站
 - 点击线路的"设置终点站"按钮
 - 选择起点站和终点站
 - 可选择设置为环线
 
-### 5. 运行模拟
+### 7. 运行模拟
 - 点击"开始模拟"按钮
 - 观看列车在线路上运行
 
-### 6. 查看任务进度
+### 8. 查看任务进度
 - 右侧面板显示当前任务和成就进度
 - 完成任务自动解锁奖励
 
@@ -102,7 +114,7 @@ npm run electron:dev
 
 | 按键 | 功能 |
 |------|------|
-| Delete / Backspace | 删除选中的站点 |
+| Delete / Backspace | 删除选中的站点或轨道 |
 | Esc | 取消选择 |
 | 滚轮 | 缩放画布 |
 | 鼠标中键拖拽 | 平移画布 |
@@ -128,41 +140,42 @@ npm run electron:dev
 - **成就解锁检测**：在关键操作时检查成就条件
 - **列车路径计算**：基于线路路径点计算列车运行轨迹
 - **画布坐标转换**：支持缩放、平移后的坐标映射
+- **轨道形状计算**：根据起点终点计算直线、折线路径
 
 ## 项目结构
 
 ```
 railway-designer/
-├── electron/              # Electron 主进程
-│   └── main.cjs          # 主进程入口 (CommonJS)
-├── public/               # 静态资源
-│   ├── tutorial.html     # 使用教程
-│   └── vite.svg          # 应用图标
+├── docs/                    # 项目文档
+│   ├── REQUIREMENTS.md      # 需求文档
+│   ├── DESIGN.md            # 设计文档
+│   ├── USER_MANUAL.md       # 用户手册
+│   └── DEVELOPMENT.md       # 开发文档
+├── electron/                # Electron 主进程
+│   └── main.cjs            # 主进程入口 (CommonJS)
+├── public/                 # 静态资源
+│   └── vite.svg            # 应用图标
 ├── src/
-│   ├── components/       # React 组件
+│   ├── components/         # React 组件
 │   │   ├── DesignCanvas.tsx    # 设计画布 (核心交互)
 │   │   ├── TaskPanel.tsx       # 任务面板 (任务/成就/统计)
 │   │   ├── Toolbar.tsx         # 工具栏 (线路/站点/操作)
 │   │   └── TrainSimulation.tsx # 列车模拟
-│   ├── constants/        # 常量配置
+│   ├── constants/          # 常量配置
 │   │   └── cityStyles.ts       # 城市风格配置
-│   ├── store/            # 状态管理
+│   ├── store/              # 状态管理
 │   │   └── gameStore.ts        # Zustand 状态存储
-│   ├── types/            # TypeScript 类型
+│   ├── types/              # TypeScript 类型
 │   │   └── index.ts            # 类型定义
-│   ├── App.tsx          # 主应用组件
-│   ├── App.css          # 应用样式
-│   ├── index.css        # 全局样式
-│   └── main.tsx         # 应用入口
-├── dist/                 # 前端构建输出
-├── dist-electron/        # Electron 打包输出
-│   ├── 轨道线路图设计器 Setup 1.0.0.exe
-│   └── 轨道线路图设计器_v1.0.0_便携版.exe
-├── index.html           # HTML 模板
-├── package.json         # 项目配置
-├── tsconfig.json        # TypeScript 配置
-├── vite.config.ts       # Vite 配置
-└── README.md            # 项目说明
+│   ├── App.tsx            # 主应用组件
+│   ├── App.css            # 应用样式
+│   ├── index.css          # 全局样式
+│   └── main.tsx           # 应用入口
+├── index.html             # HTML 模板
+├── package.json           # 项目配置
+├── tsconfig.json          # TypeScript 配置
+├── vite.config.ts         # Vite 配置
+└── README.md              # 项目说明
 ```
 
 ## 开发命令
