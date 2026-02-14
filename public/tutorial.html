@@ -1,636 +1,731 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>🚇 轨道线路图设计器 - 使用教程</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+
+      h1 {
+        text-align: center;
+        color: #333;
+        font-size: 2.5em;
+        margin-bottom: 10px;
+      }
+
+      .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 1.2em;
+        margin-bottom: 40px;
+      }
+
+      .step {
+        margin-bottom: 50px;
+        padding: 30px;
+        background: #f8f9fa;
+        border-radius: 15px;
+        border-left: 5px solid #667eea;
+      }
+
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 1.5em;
+        font-weight: bold;
+        border-radius: 50%;
+        margin-bottom: 15px;
+      }
+
+      .step h2 {
+        color: #333;
+        font-size: 1.8em;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .step p {
+        color: #555;
+        font-size: 1.1em;
+        line-height: 1.8;
+        margin-bottom: 20px;
+      }
+
+      .demo-box {
+        background: white;
+        border: 2px dashed #ddd;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+
+      .city-style-demo {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .city-card {
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        min-width: 140px;
+        transition: transform 0.3s;
+      }
+
+      .city-card:hover {
+        transform: translateY(-5px);
+      }
+
+      .city-card.shanghai {
+        background: #fef2f2;
+        border: 3px solid #dc2626;
+      }
+
+      .city-card.beijing {
+        background: #eff6ff;
+        border: 3px solid #2563eb;
+      }
+
+      .city-card.guangzhou {
+        background: #fefce8;
+        border: 3px solid #ca8a04;
+      }
+
+      .city-card.mtr {
+        background: #f0fdf4;
+        border: 3px solid #16a34a;
+      }
+
+      .city-card.tokyo {
+        background: #faf5ff;
+        border: 3px solid #9333ea;
+      }
+
+      .line-demo {
+        width: 60px;
+        height: 8px;
+        border-radius: 4px;
+        margin: 10px auto;
+      }
+
+      .station-demo {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 3px solid #374151;
+        margin: 10px auto;
+        background: white;
+      }
+
+      .station-demo.transfer {
+        border-width: 4px;
+        background: white;
+        position: relative;
+      }
+
+      .station-demo.transfer::after {
+        content: "";
+        position: absolute;
+        inset: 4px;
+        border: 2px solid #374151;
+        border-radius: 50%;
+      }
+
+      .shortcut-box {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 20px;
+      }
+
+      .shortcut {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 20px;
+        background: white;
+        border-radius: 8px;
+        border: 2px solid #e0e0e0;
+      }
+
+      .key {
+        padding: 5px 12px;
+        background: #333;
+        color: white;
+        border-radius: 5px;
+        font-family: monospace;
+        font-weight: bold;
+      }
+
+      .action {
+        color: #666;
+      }
+
+      .tip-box {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 15px;
+        margin-top: 30px;
+      }
+
+      .tip-box h3 {
+        font-size: 1.3em;
+        margin-bottom: 10px;
+      }
+
+      .tip-box ul {
+        list-style: none;
+        padding-left: 0;
+      }
+
+      .tip-box li {
+        padding: 8px 0;
+        padding-left: 30px;
+        position: relative;
+      }
+
+      .tip-box li::before {
+        content: "💡";
+        position: absolute;
+        left: 0;
+      }
+
+      .terminus-demo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        flex-wrap: wrap;
+      }
+
+      .terminus-type {
+        text-align: center;
+        padding: 20px;
+        background: #f0f4ff;
+        border-radius: 12px;
+        min-width: 200px;
+      }
+
+      .terminus-type h4 {
+        color: #4f46e5;
+        margin-bottom: 10px;
+      }
+
+      .terminus-path {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 15px;
+      }
+
+      .terminus-station {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #4f46e5;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 0.8em;
+      }
+
+      .terminus-line {
+        width: 60px;
+        height: 4px;
+        background: #4f46e5;
+        position: relative;
+      }
+
+      .terminus-line::after {
+        content: "→";
+        position: absolute;
+        right: -5px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #4f46e5;
+        font-weight: bold;
+      }
+
+      .loop-demo {
+        width: 100px;
+        height: 60px;
+        border: 4px solid #9333ea;
+        border-radius: 50px;
+        position: relative;
+        margin: 10px auto;
+      }
+
+      .loop-arrow {
+        position: absolute;
+        font-size: 1.5em;
+        color: #9333ea;
+      }
+
+      .train-animation {
+        width: 100%;
+        height: 100px;
+        background: #1e1b4b;
+        border-radius: 10px;
+        position: relative;
+        overflow: hidden;
+        margin-top: 20px;
+      }
+
+      .track-path {
+        position: absolute;
+        top: 50%;
+        left: 10%;
+        right: 10%;
+        height: 4px;
+        background: #6366f1;
+        transform: translateY(-50%);
+      }
+
+      .train-emoji {
+        position: absolute;
+        top: 50%;
+        left: 10%;
+        transform: translate(-50%, -50%);
+        font-size: 2em;
+        animation: moveTrain 3s linear infinite;
+      }
+
+      @keyframes moveTrain {
+        0% {
+          left: 10%;
         }
-        
-        body {
-            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        50% {
+          left: 90%;
         }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        100% {
+          left: 10%;
         }
-        
-        h1 {
-            text-align: center;
-            color: #333;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .subtitle {
-            text-align: center;
-            color: #666;
-            font-size: 1.2em;
-            margin-bottom: 40px;
-        }
-        
-        .step {
-            margin-bottom: 50px;
-            padding: 30px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            border-left: 5px solid #667eea;
-        }
-        
-        .step-number {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 50px;
-            height: 50px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 1.5em;
-            font-weight: bold;
-            border-radius: 50%;
-            margin-bottom: 15px;
-        }
-        
-        .step h2 {
-            color: #333;
-            font-size: 1.8em;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        
-        .step p {
-            color: #555;
-            font-size: 1.1em;
-            line-height: 1.8;
-            margin-bottom: 20px;
-        }
-        
-        .demo-box {
-            background: white;
-            border: 2px dashed #ddd;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        
-        .city-style-demo {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        
-        .city-card {
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-            min-width: 140px;
-            transition: transform 0.3s;
-        }
-        
-        .city-card:hover {
-            transform: translateY(-5px);
-        }
-        
-        .city-card.shanghai {
-            background: #fef2f2;
-            border: 3px solid #dc2626;
-        }
-        
-        .city-card.beijing {
-            background: #eff6ff;
-            border: 3px solid #2563eb;
-        }
-        
-        .city-card.guangzhou {
-            background: #fefce8;
-            border: 3px solid #ca8a04;
-        }
-        
-        .city-card.mtr {
-            background: #f0fdf4;
-            border: 3px solid #16a34a;
-        }
-        
-        .city-card.tokyo {
-            background: #faf5ff;
-            border: 3px solid #9333ea;
-        }
-        
-        .line-demo {
-            width: 60px;
-            height: 8px;
-            border-radius: 4px;
-            margin: 10px auto;
-        }
-        
-        .station-demo {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            border: 3px solid #374151;
-            margin: 10px auto;
-            background: white;
-        }
-        
-        .station-demo.transfer {
-            border-width: 4px;
-            background: white;
-            position: relative;
-        }
-        
-        .station-demo.transfer::after {
-            content: '';
-            position: absolute;
-            inset: 4px;
-            border: 2px solid #374151;
-            border-radius: 50%;
-        }
-        
-        .shortcut-box {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-top: 20px;
-        }
-        
-        .shortcut {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 20px;
-            background: white;
-            border-radius: 8px;
-            border: 2px solid #e0e0e0;
-        }
-        
-        .key {
-            padding: 5px 12px;
-            background: #333;
-            color: white;
-            border-radius: 5px;
-            font-family: monospace;
-            font-weight: bold;
-        }
-        
-        .action {
-            color: #666;
-        }
-        
-        .tip-box {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-top: 30px;
-        }
-        
-        .tip-box h3 {
-            font-size: 1.3em;
-            margin-bottom: 10px;
-        }
-        
-        .tip-box ul {
-            list-style: none;
-            padding-left: 0;
-        }
-        
-        .tip-box li {
-            padding: 8px 0;
-            padding-left: 30px;
-            position: relative;
-        }
-        
-        .tip-box li::before {
-            content: '💡';
-            position: absolute;
-            left: 0;
-        }
-        
-        .terminus-demo {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 30px;
-            flex-wrap: wrap;
-        }
-        
-        .terminus-type {
-            text-align: center;
-            padding: 20px;
-            background: #f0f4ff;
-            border-radius: 12px;
-            min-width: 200px;
-        }
-        
-        .terminus-type h4 {
-            color: #4f46e5;
-            margin-bottom: 10px;
-        }
-        
-        .terminus-path {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .terminus-station {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #4f46e5;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-            font-size: 0.8em;
-        }
-        
-        .terminus-line {
-            width: 60px;
-            height: 4px;
-            background: #4f46e5;
-            position: relative;
-        }
-        
-        .terminus-line::after {
-            content: '→';
-            position: absolute;
-            right: -5px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #4f46e5;
-            font-weight: bold;
-        }
-        
-        .loop-demo {
-            width: 100px;
-            height: 60px;
-            border: 4px solid #9333ea;
-            border-radius: 50px;
-            position: relative;
-            margin: 10px auto;
-        }
-        
-        .loop-arrow {
-            position: absolute;
-            font-size: 1.5em;
-            color: #9333ea;
-        }
-        
-        .train-animation {
-            width: 100%;
-            height: 100px;
-            background: #1e1b4b;
-            border-radius: 10px;
-            position: relative;
-            overflow: hidden;
-            margin-top: 20px;
-        }
-        
-        .track-path {
-            position: absolute;
-            top: 50%;
-            left: 10%;
-            right: 10%;
-            height: 4px;
-            background: #6366f1;
-            transform: translateY(-50%);
-        }
-        
-        .train-emoji {
-            position: absolute;
-            top: 50%;
-            left: 10%;
-            transform: translate(-50%, -50%);
-            font-size: 2em;
-            animation: moveTrain 3s linear infinite;
-        }
-        
-        @keyframes moveTrain {
-            0% { left: 10%; }
-            50% { left: 90%; }
-            100% { left: 10%; }
-        }
-        
-        .start-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            padding: 15px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.2em;
-            font-weight: bold;
-            cursor: pointer;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .start-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
-        }
-        
-        .footer {
-            text-align: center;
-            margin-top: 50px;
-            padding-top: 30px;
-            border-top: 2px solid #eee;
-        }
-        
-        .footer p {
-            color: #999;
-            font-size: 0.9em;
-        }
-        
-        .achievement-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        
-        .achievement-card {
-            background: white;
-            border: 2px solid #fbbf24;
-            border-radius: 10px;
-            padding: 15px;
-            text-align: center;
-        }
-        
-        .achievement-card.unlocked {
-            background: #fef3c7;
-        }
-        
-        .achievement-icon {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .achievement-name {
-            font-weight: bold;
-            color: #92400e;
-            margin-bottom: 5px;
-        }
-        
-        .achievement-desc {
-            font-size: 0.85em;
-            color: #666;
-        }
+      }
+
+      .start-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 1.2em;
+        font-weight: bold;
+        cursor: pointer;
+        transition:
+          transform 0.3s,
+          box-shadow 0.3s;
+      }
+
+      .start-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+      }
+
+      .footer {
+        text-align: center;
+        margin-top: 50px;
+        padding-top: 30px;
+        border-top: 2px solid #eee;
+      }
+
+      .footer p {
+        color: #999;
+        font-size: 0.9em;
+      }
+
+      .achievement-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+      }
+
+      .achievement-card {
+        background: white;
+        border: 2px solid #fbbf24;
+        border-radius: 10px;
+        padding: 15px;
+        text-align: center;
+      }
+
+      .achievement-card.unlocked {
+        background: #fef3c7;
+      }
+
+      .achievement-icon {
+        font-size: 2.5em;
+        margin-bottom: 10px;
+      }
+
+      .achievement-name {
+        font-weight: bold;
+        color: #92400e;
+        margin-bottom: 5px;
+      }
+
+      .achievement-desc {
+        font-size: 0.85em;
+        color: #666;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>🚇 轨道线路图设计器</h1>
-        <p class="subtitle">创建专业地铁线路图，支持多种城市风格！</p>
-        
-        <div class="step">
-            <div class="step-number">1</div>
-            <h2>创建你的第一个项目 🎨</h2>
-            <p>点击左侧工具栏的<strong>"新建"</strong>按钮，输入项目名称，然后选择你喜欢的城市风格：</p>
-            <div class="demo-box">
-                <div class="city-style-demo">
-                    <div class="city-card shanghai">
-                        <div style="font-size: 2em;">🏙️</div>
-                        <div style="font-weight: bold; color: #dc2626; margin-top: 5px;">上海地铁</div>
-                        <div style="font-size: 0.8em; color: #666;">圆润站点设计</div>
-                        <div class="line-demo" style="background: #ea0b2a;"></div>
-                    </div>
-                    <div class="city-card beijing">
-                        <div style="font-size: 2em;">🏛️</div>
-                        <div style="font-weight: bold; color: #2563eb; margin-top: 5px;">北京地铁</div>
-                        <div style="font-size: 0.8em; color: #666;">简洁站点设计</div>
-                        <div class="line-demo" style="background: #004b87;"></div>
-                    </div>
-                    <div class="city-card guangzhou">
-                        <div style="font-size: 2em;">🌆</div>
-                        <div style="font-weight: bold; color: #ca8a04; margin-top: 5px;">广州地铁</div>
-                        <div style="font-size: 0.8em; color: #666;">现代站点设计</div>
-                        <div class="line-demo" style="background: #f3d03e;"></div>
-                    </div>
-                    <div class="city-card mtr">
-                        <div style="font-size: 2em;">🌃</div>
-                        <div style="font-weight: bold; color: #16a34a; margin-top: 5px;">港铁</div>
-                        <div style="font-size: 0.8em; color: #666;">经典站点设计</div>
-                        <div class="line-demo" style="background: #00af41;"></div>
-                    </div>
-                    <div class="city-card tokyo">
-                        <div style="font-size: 2em;">🗼</div>
-                        <div style="font-weight: bold; color: #9333ea; margin-top: 5px;">东京地铁</div>
-                        <div style="font-size: 0.8em; color: #666;">精致站点设计</div>
-                        <div class="line-demo" style="background: #ff9500;"></div>
-                    </div>
-                </div>
+      <h1>🚇 轨道线路图设计器</h1>
+      <p class="subtitle">创建专业地铁线路图，支持多种城市风格！</p>
+
+      <div class="step">
+        <div class="step-number">1</div>
+        <h2>创建你的第一个项目 🎨</h2>
+        <p>
+          点击左侧工具栏的<strong>"新建"</strong>按钮，输入项目名称，然后选择你喜欢的城市风格：
+        </p>
+        <div class="demo-box">
+          <div class="city-style-demo">
+            <div class="city-card shanghai">
+              <div style="font-size: 2em">🏙️</div>
+              <div style="font-weight: bold; color: #dc2626; margin-top: 5px">
+                上海地铁
+              </div>
+              <div style="font-size: 0.8em; color: #666">圆润站点设计</div>
+              <div class="line-demo" style="background: #ea0b2a"></div>
             </div>
-        </div>
-        
-        <div class="step">
-            <div class="step-number">2</div>
-            <h2>管理线路 🚇</h2>
-            <p>在<strong>"线路"</strong>标签页，你可以：</p>
-            <ul style="margin-left: 20px; color: #555; line-height: 2;">
-                <li>查看当前所有线路</li>
-                <li>点击<strong>"添加线路"</strong>创建新线路</li>
-                <li>从预设颜色中选择线路颜色</li>
-                <li>切换当前编辑的线路</li>
-            </ul>
-            <div class="demo-box">
-                <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
-                    <div style="padding: 15px 25px; background: #fef2f2; border-radius: 10px; border: 2px solid #dc2626;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <div style="width: 12px; height: 12px; background: #dc2626; border-radius: 50%;"></div>
-                            <span style="font-weight: bold;">1号线</span>
-                        </div>
-                    </div>
-                    <div style="padding: 15px 25px; background: #eff6ff; border-radius: 10px; border: 2px solid #2563eb;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <div style="width: 12px; height: 12px; background: #2563eb; border-radius: 50%;"></div>
-                            <span style="font-weight: bold;">2号线</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="city-card beijing">
+              <div style="font-size: 2em">🏛️</div>
+              <div style="font-weight: bold; color: #2563eb; margin-top: 5px">
+                北京地铁
+              </div>
+              <div style="font-size: 0.8em; color: #666">简洁站点设计</div>
+              <div class="line-demo" style="background: #004b87"></div>
             </div>
-        </div>
-        
-        <div class="step">
-            <div class="step-number">3</div>
-            <h2>添加站点 🚉</h2>
-            <p>在<strong>"站点"</strong>标签页，选择站点类型，然后在画布上点击放置：</p>
-            <div class="demo-box">
-                <div style="display: flex; gap: 40px; justify-content: center; flex-wrap: wrap;">
-                    <div style="text-align: center;">
-                        <div class="station-demo"></div>
-                        <div style="font-weight: bold; color: #374151;">普通站</div>
-                        <div style="font-size: 0.85em; color: #666;">单一线路的站点</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div class="station-demo transfer"></div>
-                        <div style="font-weight: bold; color: #374151;">换乘站</div>
-                        <div style="font-size: 0.85em; color: #666;">多条线路交汇点</div>
-                    </div>
-                </div>
+            <div class="city-card guangzhou">
+              <div style="font-size: 2em">🌆</div>
+              <div style="font-weight: bold; color: #ca8a04; margin-top: 5px">
+                广州地铁
+              </div>
+              <div style="font-size: 0.8em; color: #666">现代站点设计</div>
+              <div class="line-demo" style="background: #f3d03e"></div>
             </div>
-            <p>添加站点时会自动关联到当前选中的线路。</p>
-        </div>
-        
-        <div class="step">
-            <div class="step-number">4</div>
-            <h2>设置终点站 🎯</h2>
-            <p>每条线路需要设置起点站和终点站，列车会根据设置运行：</p>
-            <div class="demo-box">
-                <div class="terminus-demo">
-                    <div class="terminus-type">
-                        <h4>🔄 往返线</h4>
-                        <p style="font-size: 0.9em; color: #666;">列车在两端往返运行</p>
-                        <div class="terminus-path">
-                            <div class="terminus-station">起</div>
-                            <div class="terminus-line"></div>
-                            <div class="terminus-station" style="background: #7c3aed;">终</div>
-                        </div>
-                    </div>
-                    <div class="terminus-type" style="background: #faf5ff;">
-                        <h4 style="color: #9333ea;">⭕ 环线</h4>
-                        <p style="font-size: 0.9em; color: #666;">列车按环形路线循环</p>
-                        <div class="loop-demo">
-                            <span class="loop-arrow" style="top: -10px; left: 50%; transform: translateX(-50%);">↻</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="city-card mtr">
+              <div style="font-size: 2em">🌃</div>
+              <div style="font-weight: bold; color: #16a34a; margin-top: 5px">
+                港铁
+              </div>
+              <div style="font-size: 0.8em; color: #666">经典站点设计</div>
+              <div class="line-demo" style="background: #00af41"></div>
             </div>
-            <p>在线路列表中点击<strong>"设置终点站"</strong>按钮进行配置。</p>
-        </div>
-        
-        <div class="step">
-            <div class="step-number">5</div>
-            <h2>编辑站点 ✏️</h2>
-            <p>选中站点后可以进行的操作：</p>
-            <div class="shortcut-box">
-                <div class="shortcut">
-                    <span class="key">拖拽</span>
-                    <span class="action">移动站点位置</span>
-                </div>
-                <div class="shortcut">
-                    <span class="key">Delete</span>
-                    <span class="action">删除站点</span>
-                </div>
-                <div class="shortcut">
-                    <span class="key">Esc</span>
-                    <span class="action">取消选择</span>
-                </div>
+            <div class="city-card tokyo">
+              <div style="font-size: 2em">🗼</div>
+              <div style="font-weight: bold; color: #9333ea; margin-top: 5px">
+                东京地铁
+              </div>
+              <div style="font-size: 0.8em; color: #666">精致站点设计</div>
+              <div class="line-demo" style="background: #ff9500"></div>
             </div>
+          </div>
         </div>
-        
-        <div class="step">
-            <div class="step-number">6</div>
-            <h2>画布操作 🖱️</h2>
-            <p>使用这些操作来更好地查看和编辑你的设计：</p>
-            <div class="shortcut-box">
-                <div class="shortcut">
-                    <span class="key">滚轮</span>
-                    <span class="action">缩放画布</span>
-                </div>
-                <div class="shortcut">
-                    <span class="key">中键拖拽</span>
-                    <span class="action">平移画布</span>
-                </div>
-                <div class="shortcut">
-                    <span class="key">平移工具</span>
-                    <span class="action">移动视图</span>
-                </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <h2>管理线路 🚇</h2>
+        <p>在<strong>"线路"</strong>标签页，你可以：</p>
+        <ul style="margin-left: 20px; color: #555; line-height: 2">
+          <li>查看当前所有线路</li>
+          <li>点击<strong>"添加线路"</strong>创建新线路</li>
+          <li>从预设颜色中选择线路颜色</li>
+          <li>切换当前编辑的线路</li>
+        </ul>
+        <div class="demo-box">
+          <div
+            style="
+              display: flex;
+              gap: 15px;
+              justify-content: center;
+              flex-wrap: wrap;
+            "
+          >
+            <div
+              style="
+                padding: 15px 25px;
+                background: #fef2f2;
+                border-radius: 10px;
+                border: 2px solid #dc2626;
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 8px">
+                <div
+                  style="
+                    width: 12px;
+                    height: 12px;
+                    background: #dc2626;
+                    border-radius: 50%;
+                  "
+                ></div>
+                <span style="font-weight: bold">1号线</span>
+              </div>
             </div>
-        </div>
-        
-        <div class="step">
-            <div class="step-number">7</div>
-            <h2>运行列车模拟 🚃</h2>
-            <p>设置好终点站后，点击<strong>"开始模拟"</strong>按钮，观看列车在线路上运行！</p>
-            <div class="demo-box">
-                <div class="train-animation">
-                    <div class="track-path"></div>
-                    <div class="train-emoji">🚇</div>
-                </div>
+            <div
+              style="
+                padding: 15px 25px;
+                background: #eff6ff;
+                border-radius: 10px;
+                border: 2px solid #2563eb;
+              "
+            >
+              <div style="display: flex; align-items: center; gap: 8px">
+                <div
+                  style="
+                    width: 12px;
+                    height: 12px;
+                    background: #2563eb;
+                    border-radius: 50%;
+                  "
+                ></div>
+                <span style="font-weight: bold">2号线</span>
+              </div>
             </div>
-            <p style="font-size: 0.9em; color: #666;">列车会自动按照终点站设置往返或循环运行。</p>
+          </div>
         </div>
-        
-        <div class="step">
-            <div class="step-number">8</div>
-            <h2>导出和分享 💾</h2>
-            <p>完成设计后，你可以：</p>
-            <ul style="margin-left: 20px; color: #555; line-height: 2;">
-                <li>点击<strong>"导出"</strong>按钮保存项目为 JSON 文件</li>
-                <li>通过<strong>"导入"</strong>功能加载之前的项目</li>
-                <li>在不同设备间分享你的设计</li>
-            </ul>
-        </div>
-        
-        <div class="step">
-            <div class="step-number">9</div>
-            <h2>完成任务和成就 🏆</h2>
-            <p>右侧面板显示你的任务进度和成就，完成它们来解锁更多功能：</p>
-            <div class="demo-box">
-                <div class="achievement-grid">
-                    <div class="achievement-card unlocked">
-                        <div class="achievement-icon">🌟</div>
-                        <div class="achievement-name">设计新手</div>
-                        <div class="achievement-desc">完成第一个设计项目</div>
-                    </div>
-                    <div class="achievement-card">
-                        <div class="achievement-icon">🚃</div>
-                        <div class="achievement-name">轨道工程师</div>
-                        <div class="achievement-desc">创建包含5个站点的线路</div>
-                    </div>
-                    <div class="achievement-card">
-                        <div class="achievement-icon">🔗</div>
-                        <div class="achievement-name">换乘专家</div>
-                        <div class="achievement-desc">创建3个换乘站</div>
-                    </div>
-                    <div class="achievement-card">
-                        <div class="achievement-icon">⭕</div>
-                        <div class="achievement-name">环线大师</div>
-                        <div class="achievement-desc">创建一条环线</div>
-                    </div>
-                </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <h2>添加站点 🚉</h2>
+        <p>
+          在<strong>"站点"</strong>标签页，选择站点类型，然后在画布上点击放置：
+        </p>
+        <div class="demo-box">
+          <div
+            style="
+              display: flex;
+              gap: 40px;
+              justify-content: center;
+              flex-wrap: wrap;
+            "
+          >
+            <div style="text-align: center">
+              <div class="station-demo"></div>
+              <div style="font-weight: bold; color: #374151">普通站</div>
+              <div style="font-size: 0.85em; color: #666">单一线路的站点</div>
             </div>
+            <div style="text-align: center">
+              <div class="station-demo transfer"></div>
+              <div style="font-weight: bold; color: #374151">换乘站</div>
+              <div style="font-size: 0.85em; color: #666">多条线路交汇点</div>
+            </div>
+          </div>
         </div>
-        
-        <div class="tip-box">
-            <h3>💡 小提示</h3>
-            <ul>
-                <li><strong>站点会自动吸附到网格</strong>，保持整齐对齐</li>
-                <li><strong>换乘站</strong>可以让乘客在不同线路间换乘</li>
-                <li><strong>环线</strong>适合市中心区域，<strong>往返线</strong>适合郊区线路</li>
-                <li>设置终点站后列车才能正确运行</li>
-                <li>多线路设计时，记得为每条线路设置不同的颜色</li>
-                <li>定期导出保存，避免丢失设计成果</li>
-            </ul>
+        <p>添加站点时会自动关联到当前选中的线路。</p>
+      </div>
+
+      <div class="step">
+        <div class="step-number">4</div>
+        <h2>设置终点站 🎯</h2>
+        <p>每条线路需要设置起点站和终点站，列车会根据设置运行：</p>
+        <div class="demo-box">
+          <div class="terminus-demo">
+            <div class="terminus-type">
+              <h4>🔄 往返线</h4>
+              <p style="font-size: 0.9em; color: #666">列车在两端往返运行</p>
+              <div class="terminus-path">
+                <div class="terminus-station">起</div>
+                <div class="terminus-line"></div>
+                <div class="terminus-station" style="background: #7c3aed">
+                  终
+                </div>
+              </div>
+            </div>
+            <div class="terminus-type" style="background: #faf5ff">
+              <h4 style="color: #9333ea">⭕ 环线</h4>
+              <p style="font-size: 0.9em; color: #666">列车按环形路线循环</p>
+              <div class="loop-demo">
+                <span
+                  class="loop-arrow"
+                  style="top: -10px; left: 50%; transform: translateX(-50%)"
+                  >↻</span
+                >
+              </div>
+            </div>
+          </div>
         </div>
-        
-        <div class="footer">
-            <button class="start-btn" onclick="window.close();">
-                <span>🎮</span>
-                <span>开始设计我的地铁</span>
-            </button>
-            <p style="margin-top: 20px;">祝你玩得开心！成为一名出色的地铁线路设计师！🌟</p>
+        <p>在线路列表中点击<strong>"设置终点站"</strong>按钮进行配置。</p>
+      </div>
+
+      <div class="step">
+        <div class="step-number">5</div>
+        <h2>编辑站点 ✏️</h2>
+        <p>选中站点后可以进行的操作：</p>
+        <div class="shortcut-box">
+          <div class="shortcut">
+            <span class="key">拖拽</span>
+            <span class="action">移动站点位置</span>
+          </div>
+          <div class="shortcut">
+            <span class="key">Delete</span>
+            <span class="action">删除站点</span>
+          </div>
+          <div class="shortcut">
+            <span class="key">Esc</span>
+            <span class="action">取消选择</span>
+          </div>
         </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">6</div>
+        <h2>画布操作 🖱️</h2>
+        <p>使用这些操作来更好地查看和编辑你的设计：</p>
+        <div class="shortcut-box">
+          <div class="shortcut">
+            <span class="key">滚轮</span>
+            <span class="action">缩放画布</span>
+          </div>
+          <div class="shortcut">
+            <span class="key">中键拖拽</span>
+            <span class="action">平移画布</span>
+          </div>
+          <div class="shortcut">
+            <span class="key">平移工具</span>
+            <span class="action">移动视图</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">7</div>
+        <h2>运行列车模拟 🚃</h2>
+        <p>
+          设置好终点站后，点击<strong>"开始模拟"</strong>按钮，观看列车在线路上运行！
+        </p>
+        <div class="demo-box">
+          <div class="train-animation">
+            <div class="track-path"></div>
+            <div class="train-emoji">🚇</div>
+          </div>
+        </div>
+        <p style="font-size: 0.9em; color: #666">
+          列车会自动按照终点站设置往返或循环运行。
+        </p>
+      </div>
+
+      <div class="step">
+        <div class="step-number">8</div>
+        <h2>导出和分享 💾</h2>
+        <p>完成设计后，你可以：</p>
+        <ul style="margin-left: 20px; color: #555; line-height: 2">
+          <li>点击<strong>"导出"</strong>按钮保存项目为 JSON 文件</li>
+          <li>通过<strong>"导入"</strong>功能加载之前的项目</li>
+          <li>在不同设备间分享你的设计</li>
+        </ul>
+      </div>
+
+      <div class="step">
+        <div class="step-number">9</div>
+        <h2>完成任务和成就 🏆</h2>
+        <p>右侧面板显示你的任务进度和成就，完成它们来解锁更多功能：</p>
+        <div class="demo-box">
+          <div class="achievement-grid">
+            <div class="achievement-card unlocked">
+              <div class="achievement-icon">🌟</div>
+              <div class="achievement-name">设计新手</div>
+              <div class="achievement-desc">完成第一个设计项目</div>
+            </div>
+            <div class="achievement-card">
+              <div class="achievement-icon">🚃</div>
+              <div class="achievement-name">轨道工程师</div>
+              <div class="achievement-desc">创建包含5个站点的线路</div>
+            </div>
+            <div class="achievement-card">
+              <div class="achievement-icon">🔗</div>
+              <div class="achievement-name">换乘专家</div>
+              <div class="achievement-desc">创建3个换乘站</div>
+            </div>
+            <div class="achievement-card">
+              <div class="achievement-icon">⭕</div>
+              <div class="achievement-name">环线大师</div>
+              <div class="achievement-desc">创建一条环线</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip-box">
+        <h3>💡 小提示</h3>
+        <ul>
+          <li><strong>站点会自动吸附到网格</strong>，保持整齐对齐</li>
+          <li><strong>换乘站</strong>可以让乘客在不同线路间换乘</li>
+          <li>
+            <strong>环线</strong
+            >适合市中心区域，<strong>往返线</strong>适合郊区线路
+          </li>
+          <li>设置终点站后列车才能正确运行</li>
+          <li>多线路设计时，记得为每条线路设置不同的颜色</li>
+          <li>定期导出保存，避免丢失设计成果</li>
+        </ul>
+      </div>
+
+      <div class="footer">
+        <button class="start-btn" onclick="closeTutorial()">
+          <span>🎮</span>
+          <span>开始设计我的地铁</span>
+        </button>
+        <p style="margin-top: 20px">
+          祝你玩得开心！成为一名出色的地铁线路设计师！🌟
+        </p>
+      </div>
+
+      <script>
+        function closeTutorial() {
+          if (window.opener) {
+            window.close();
+          } else {
+            const message = document.createElement("div");
+            message.innerHTML =
+              "✅ 你已了解所有操作，可以关闭此窗口开始设计了！";
+            message.style.cssText =
+              "position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:15px 30px;border-radius:10px;font-size:16px;box-shadow:0 4px 15px rgba(0,0,0,0.2);z-index:1000;";
+            document.body.appendChild(message);
+            setTimeout(() => message.remove(), 3000);
+          }
+        }
+      </script>
     </div>
-</body>
+  </body>
 </html>

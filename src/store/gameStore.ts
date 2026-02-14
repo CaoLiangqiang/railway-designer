@@ -10,7 +10,8 @@ import type {
   Line,
   LineStyle,
   ToolType,
-  LinePath
+  LinePath,
+  TaskRequirement
 } from '../types';
 import { getDefaultLineColor } from '../constants/cityStyles';
 
@@ -24,48 +25,44 @@ interface GameStore {
   tasks: Task[];
   achievements: Achievement[];
   unlockedItems: string[];
+  simulationCount: number;
+  terminusSetCount: number;
+  stylesUsed: string[];
 
-  // 项目操作
   createProject: (name: string, mapType: MapType, style: LineStyle) => void;
   loadProject: (project: DesignProject) => void;
   saveCurrentProject: () => void;
   exportProject: () => string;
   importProject: (json: string) => boolean;
 
-  // 线路操作
   addLine: (name: string, color: string, style: LineStyle) => void;
   updateLine: (id: string, updates: Partial<Line>) => void;
   removeLine: (id: string) => void;
   selectLine: (id: string | null) => void;
   setTerminus: (lineId: string, startStationId: string | null, endStationId: string | null, isLoop: boolean) => void;
 
-  // 站点操作
   addStation: (station: Omit<Station, 'id'>) => void;
   updateStation: (id: string, updates: Partial<Station>) => void;
   removeStation: (id: string) => void;
   moveStation: (id: string, position: Position) => void;
 
-  // 线路路径操作
   addLinePath: (lineId: string, points: Position[]) => void;
   removeLinePath: (lineId: string, pathId: string) => void;
 
-  // 选择操作
   selectTool: (tool: ToolType | null) => void;
   selectElement: (id: string | null, type: 'station' | 'line' | null) => void;
 
-  // 画布操作
   setCanvasOffset: (offset: Position) => void;
   setZoom: (zoom: number) => void;
 
-  // 模拟控制
   startSimulation: () => void;
   stopSimulation: () => void;
 
-  // 任务和成就
   completeTask: (taskId: string) => void;
   unlockAchievement: (achievementId: string) => void;
+  checkProgress: () => void;
+  updateTaskProgress: (requirementType: TaskRequirement['type'], value?: number) => void;
 
-  // 撤销/重做
   undo: () => void;
   redo: () => void;
 }
@@ -126,7 +123,7 @@ const initialTasks: Task[] = [
     completed: false,
     requirements: [{ type: 'create_line', target: 3, current: 0 }],
     rewards: [{ type: 'line_style', itemId: 'all' }]
-  }
+  },
 ];
 
 const initialAchievements: Achievement[] = [
@@ -134,58 +131,58 @@ const initialAchievements: Achievement[] = [
     id: 'achievement-1',
     name: '设计新手',
     description: '创建第一个设计项目',
-    icon: 'star',
+    icon: '🌟',
     unlocked: false
   },
   {
     id: 'achievement-2',
     name: '轨道工程师',
     description: '创建一条包含5个站点的线路',
-    icon: 'train',
+    icon: '🚃',
     unlocked: false
   },
   {
     id: 'achievement-3',
     name: '换乘专家',
     description: '创建3个换乘站',
-    icon: 'link',
+    icon: '🔗',
     unlocked: false
   },
   {
     id: 'achievement-4',
     name: '环线大师',
     description: '创建一条环线',
-    icon: 'circle',
+    icon: '⭕',
     unlocked: false
   },
   {
     id: 'achievement-5',
     name: '多线路运营',
     description: '创建3条或以上线路',
-    icon: 'subway',
+    icon: '🚇',
     unlocked: false
   },
   {
     id: 'achievement-6',
     name: '模拟运行',
     description: '成功运行列车模拟',
-    icon: 'gamepad',
+    icon: '🎮',
     unlocked: false
   },
   {
     id: 'achievement-7',
     name: '城市设计师',
     description: '使用3种不同城市风格',
-    icon: 'city',
+    icon: '🏙️',
     unlocked: false
   },
   {
     id: 'achievement-8',
     name: '终点站规划师',
     description: '为5条线路设置终点站',
-    icon: 'target',
+    icon: '🎯',
     unlocked: false
-  }
+  },
 ];
 
 export const useGameStore = create<GameStore>()(
@@ -200,6 +197,9 @@ export const useGameStore = create<GameStore>()(
       tasks: initialTasks,
       achievements: initialAchievements,
       unlockedItems: [],
+      simulationCount: 0,
+      terminusSetCount: 0,
+      stylesUsed: [],
 
       createProject: (name: string, mapType: MapType, style: LineStyle = 'shmetro') => {
         const defaultLine: Line = {
@@ -225,13 +225,28 @@ export const useGameStore = create<GameStore>()(
           canvasOffset: { x: 0, y: 0 },
           zoom: 1
         };
+
+        const { stylesUsed, achievements } = get();
+        const newStylesUsed = [...new Set([...stylesUsed, style])];
+
         set({
           currentProject: newProject,
           selectedTool: null,
           selectedElementId: null,
           selectedElementType: null,
-          selectedLineId: defaultLine.id
+          selectedLineId: defaultLine.id,
+          stylesUsed: newStylesUsed,
         });
+
+        if (!achievements.find(a => a.id === 'achievement-1')?.unlocked) {
+          get().unlockAchievement('achievement-1');
+        }
+
+        if (newStylesUsed.length >= 3 && !achievements.find(a => a.id === 'achievement-7')?.unlocked) {
+          get().unlockAchievement('achievement-7');
+        }
+
+        get().checkProgress();
       },
 
       loadProject: (project: DesignProject) => {
@@ -242,6 +257,7 @@ export const useGameStore = create<GameStore>()(
           selectedElementType: null,
           selectedLineId: project.lines[0]?.id || null
         });
+        get().checkProgress();
       },
 
       saveCurrentProject: () => {
@@ -276,6 +292,7 @@ export const useGameStore = create<GameStore>()(
               selectedElementType: null,
               selectedLineId: project.lines[0]?.id || null
             });
+            get().checkProgress();
             return true;
           }
           return false;
@@ -285,7 +302,7 @@ export const useGameStore = create<GameStore>()(
       },
 
       addLine: (name: string, color: string, style: LineStyle) => {
-        const { currentProject } = get();
+        const { currentProject, stylesUsed, achievements } = get();
         if (!currentProject) return;
 
         const newLine: Line = {
@@ -300,14 +317,29 @@ export const useGameStore = create<GameStore>()(
           isLoop: false
         };
 
+        const newStylesUsed = [...new Set([...stylesUsed, style])];
+        const newLines = [...currentProject.lines, newLine];
+
         set({
           currentProject: {
             ...currentProject,
-            lines: [...currentProject.lines, newLine],
+            lines: newLines,
             updatedAt: new Date()
           },
-          selectedLineId: newLine.id
+          selectedLineId: newLine.id,
+          stylesUsed: newStylesUsed,
         });
+
+        if (newLines.length >= 3 && !achievements.find(a => a.id === 'achievement-5')?.unlocked) {
+          get().unlockAchievement('achievement-5');
+        }
+
+        if (newStylesUsed.length >= 3 && !achievements.find(a => a.id === 'achievement-7')?.unlocked) {
+          get().unlockAchievement('achievement-7');
+        }
+
+        get().updateTaskProgress('create_line');
+        get().checkProgress();
       },
 
       updateLine: (id: string, updates: Partial<Line>) => {
@@ -342,6 +374,7 @@ export const useGameStore = create<GameStore>()(
           },
           selectedLineId: updatedLines[0]?.id || null
         });
+        get().checkProgress();
       },
 
       selectLine: (id: string | null) => {
@@ -349,8 +382,12 @@ export const useGameStore = create<GameStore>()(
       },
 
       setTerminus: (lineId: string, startStationId: string | null, endStationId: string | null, isLoop: boolean) => {
-        const { currentProject } = get();
+        const { currentProject, terminusSetCount, achievements } = get();
         if (!currentProject) return;
+
+        const line = currentProject.lines.find(l => l.id === lineId);
+        const wasLoop = line?.isLoop;
+        const hadTerminus = line?.startTerminus && line?.endTerminus;
 
         set({
           currentProject: {
@@ -363,10 +400,30 @@ export const useGameStore = create<GameStore>()(
             updatedAt: new Date()
           }
         });
+
+        if (!hadTerminus && startStationId && endStationId) {
+          const newTerminusCount = terminusSetCount + 1;
+          set({ terminusSetCount: newTerminusCount });
+
+          get().updateTaskProgress('set_terminus');
+
+          if (newTerminusCount >= 5 && !achievements.find(a => a.id === 'achievement-8')?.unlocked) {
+            get().unlockAchievement('achievement-8');
+          }
+        }
+
+        if (isLoop && !wasLoop) {
+          get().updateTaskProgress('create_loop');
+          if (!achievements.find(a => a.id === 'achievement-4')?.unlocked) {
+            get().unlockAchievement('achievement-4');
+          }
+        }
+
+        get().checkProgress();
       },
 
       addStation: (station: Omit<Station, 'id'>) => {
-        const { currentProject, selectedLineId } = get();
+        const { currentProject, selectedLineId, achievements } = get();
         if (!currentProject || !selectedLineId) return;
 
         const newStation: Station = {
@@ -375,18 +432,40 @@ export const useGameStore = create<GameStore>()(
           lines: [selectedLineId]
         };
 
+        const updatedLines = currentProject.lines.map(line =>
+          line.id === selectedLineId
+            ? { ...line, stations: [...line.stations, newStation.id] }
+            : line
+        );
+
         set({
           currentProject: {
             ...currentProject,
             stations: [...currentProject.stations, newStation],
-            lines: currentProject.lines.map(line =>
-              line.id === selectedLineId
-                ? { ...line, stations: [...line.stations, newStation.id] }
-                : line
-            ),
+            lines: updatedLines,
             updatedAt: new Date()
           }
         });
+
+        get().updateTaskProgress('add_station');
+
+        const currentLine = updatedLines.find(l => l.id === selectedLineId);
+        if (currentLine && currentLine.stations.length >= 5) {
+          if (!achievements.find(a => a.id === 'achievement-2')?.unlocked) {
+            get().unlockAchievement('achievement-2');
+          }
+        }
+
+        if (station.isTransfer) {
+          get().updateTaskProgress('create_transfer');
+
+          const transferCount = [...currentProject.stations, newStation].filter(s => s.isTransfer).length;
+          if (transferCount >= 3 && !achievements.find(a => a.id === 'achievement-3')?.unlocked) {
+            get().unlockAchievement('achievement-3');
+          }
+        }
+
+        get().checkProgress();
       },
 
       updateStation: (id: string, updates: Partial<Station>) => {
@@ -420,6 +499,7 @@ export const useGameStore = create<GameStore>()(
           },
           selectedElementId: null
         });
+        get().checkProgress();
       },
 
       moveStation: (id: string, position: Position) => {
@@ -511,7 +591,16 @@ export const useGameStore = create<GameStore>()(
       },
 
       startSimulation: () => {
-        set({ isPlaying: true });
+        const { simulationCount, achievements } = get();
+        set({ isPlaying: true, simulationCount: simulationCount + 1 });
+
+        get().updateTaskProgress('run_simulation');
+
+        if (!achievements.find(a => a.id === 'achievement-6')?.unlocked) {
+          get().unlockAchievement('achievement-6');
+        }
+
+        get().checkProgress();
       },
 
       stopSimulation: () => {
@@ -519,10 +608,22 @@ export const useGameStore = create<GameStore>()(
       },
 
       completeTask: (taskId: string) => {
+        const { tasks, unlockedItems } = get();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task || task.completed) return;
+
+        const newUnlockedItems = [...unlockedItems];
+        task.rewards.forEach(reward => {
+          if (!newUnlockedItems.includes(reward.itemId)) {
+            newUnlockedItems.push(reward.itemId);
+          }
+        });
+
         set(state => ({
-          tasks: state.tasks.map(task =>
-            task.id === taskId ? { ...task, completed: true } : task
-          )
+          tasks: state.tasks.map(t =>
+            t.id === taskId ? { ...t, completed: true } : t
+          ),
+          unlockedItems: newUnlockedItems
         }));
       },
 
@@ -536,12 +637,86 @@ export const useGameStore = create<GameStore>()(
         }));
       },
 
+      updateTaskProgress: (requirementType: TaskRequirement['type'], value?: number) => {
+        const { currentProject } = get();
+        if (!currentProject) return;
+
+        let calculatedValue = value;
+
+        if (calculatedValue === undefined) {
+          switch (requirementType) {
+            case 'add_station':
+              calculatedValue = currentProject.stations.length;
+              break;
+            case 'create_line':
+              calculatedValue = currentProject.lines.length;
+              break;
+            case 'create_transfer':
+              calculatedValue = currentProject.stations.filter(s => s.isTransfer).length;
+              break;
+            case 'create_loop':
+              calculatedValue = currentProject.lines.filter(l => l.isLoop).length;
+              break;
+            case 'set_terminus':
+              calculatedValue = currentProject.lines.filter(l => l.startTerminus && l.endTerminus).length;
+              break;
+            case 'run_simulation':
+              calculatedValue = get().simulationCount;
+              break;
+            default:
+              calculatedValue = 0;
+          }
+        }
+
+        set(state => ({
+          tasks: state.tasks.map(task => {
+            if (task.completed) return task;
+
+            const updatedRequirements = task.requirements.map(req => {
+              if (req.type === requirementType) {
+                return { ...req, current: calculatedValue! };
+              }
+              return req;
+            });
+
+            return { ...task, requirements: updatedRequirements };
+          })
+        }));
+      },
+
+      checkProgress: () => {
+        const { tasks, currentProject } = get();
+        if (!currentProject) return;
+
+        const progressData = {
+          add_station: currentProject.stations.length,
+          create_line: currentProject.lines.length,
+          create_transfer: currentProject.stations.filter(s => s.isTransfer).length,
+          create_loop: currentProject.lines.filter(l => l.isLoop).length,
+          set_terminus: currentProject.lines.filter(l => l.startTerminus && l.endTerminus).length,
+          run_simulation: get().simulationCount,
+        };
+
+        Object.entries(progressData).forEach(([type, value]) => {
+          get().updateTaskProgress(type as TaskRequirement['type'], value);
+        });
+
+        tasks.forEach(task => {
+          if (!task.completed) {
+            const allRequirementsMet = task.requirements.every(
+              req => req.current >= req.target
+            );
+            if (allRequirementsMet) {
+              get().completeTask(task.id);
+            }
+          }
+        });
+      },
+
       undo: () => {
-        // 撤销逻辑
       },
 
       redo: () => {
-        // 重做逻辑
       }
     }),
     {
@@ -549,7 +724,10 @@ export const useGameStore = create<GameStore>()(
       partialize: (state) => ({
         tasks: state.tasks,
         achievements: state.achievements,
-        unlockedItems: state.unlockedItems
+        unlockedItems: state.unlockedItems,
+        simulationCount: state.simulationCount,
+        terminusSetCount: state.terminusSetCount,
+        stylesUsed: state.stylesUsed
       })
     }
   )

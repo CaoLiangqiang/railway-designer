@@ -5,7 +5,6 @@ import {
   Download,
   Play,
   Square as Stop,
-  RotateCcw,
   Trash2,
   HelpCircle,
   MousePointer2,
@@ -16,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
-import type { LineStyle, StationStyle } from '../types';
+import type { LineStyle, StationStyle, Station } from '../types';
 import { cityStyles, getDefaultLineColor } from '../constants/cityStyles';
 
 const stationStyles: { style: StationStyle; label: string; icon: string }[] = [
@@ -659,7 +658,7 @@ const Toolbar: React.FC = () => {
             <h3 className="text-lg font-bold text-gray-800 mb-4">设置终点站</h3>
             {(() => {
               const line = currentProject.lines.find(l => l.id === selectedLineId);
-              const lineStations = line?.stations.map(id => currentProject.stations.find(s => s.id === id)).filter(Boolean) || [];
+              const lineStations = line?.stations.map(id => currentProject.stations.find(s => s.id === id)).filter((s): s is Station => s !== undefined) || [];
               return (
                 <div className="space-y-4">
                   <div>
@@ -683,7 +682,7 @@ const Toolbar: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">请选择站点</option>
-                      {lineStations.map((station: any) => (
+                      {lineStations.map((station) => (
                         <option key={station.id} value={station.id}>{station.name}</option>
                       ))}
                     </select>
@@ -699,7 +698,7 @@ const Toolbar: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">请选择站点</option>
-                        {lineStations.map((station: any) => (
+                        {lineStations.map((station) => (
                           <option key={station.id} value={station.id}>{station.name}</option>
                         ))}
                       </select>

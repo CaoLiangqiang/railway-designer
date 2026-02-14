@@ -7,6 +7,7 @@
 
 ## 功能特性
 
+### 核心功能
 - **多城市风格支持**：上海、北京、广州、港铁、东京等多种地铁风格
 - **线路管理**：创建多条线路，每条线路独立设置颜色和名称
 - **站点设计**：支持普通站和换乘站两种类型
@@ -14,31 +15,58 @@
 - **列车模拟**：实时观看列车在线路上运行
 - **项目导出/导入**：保存和分享你的设计作品
 
+### 任务与成就系统
+- **任务系统**：6个渐进式任务，引导用户学习各项功能
+  - 初识线路：创建包含3个站点的线路
+  - 设置终点站：为线路设置起点和终点站
+  - 运行模拟：成功运行列车模拟
+  - 换乘枢纽：创建一个换乘站
+  - 环线设计：创建一条环线
+  - 多线路运营：创建3条线路
+
+- **成就系统**：8个成就等待解锁
+  - 设计新手、轨道工程师、换乘专家、环线大师
+  - 多线路运营、模拟运行、城市设计师、终点站规划师
+
+- **奖励机制**：完成任务解锁新的城市风格
+
 ## 快速开始
 
-### 环境要求
+### 方式一：直接运行（推荐）
 
-- [Node.js](https://nodejs.org/) (推荐 LTS 版本)
+下载 `轨道线路图设计器_v1.0.0_便携版.exe`，双击即可运行，无需安装。
 
-### 安装与运行
+### 方式二：安装版
+
+下载 `轨道线路图设计器 Setup 1.0.0.exe`，按照向导安装后使用。
+
+### 方式三：开发环境运行
+
+#### 环境要求
+- [Node.js](https://nodejs.org/) 18+ (推荐 LTS 版本)
+- npm 9+
+
+#### 安装与运行
 
 1. 克隆或下载本项目
 2. 进入项目目录
-3. 运行启动脚本：
+3. 安装依赖：
 
 ```bash
-# Windows
-.\start.bat
-
-# 或使用 PowerShell
-.\启动地铁设计师.ps1
+npm install
 ```
 
-4. 浏览器会自动打开应用，或手动访问 `http://localhost:5173/`
+4. 启动开发服务器：
 
-### 首次运行
+```bash
+# 浏览器开发模式
+npm run dev
 
-首次运行时会自动安装依赖，这可能需要 2-5 分钟，请保持网络连接。
+# Electron 桌面应用开发模式
+npm run electron:dev
+```
+
+5. 浏览器会自动打开应用，或手动访问 `http://localhost:5173/`
 
 ## 使用指南
 
@@ -66,6 +94,10 @@
 - 点击"开始模拟"按钮
 - 观看列车在线路上运行
 
+### 6. 查看任务进度
+- 右侧面板显示当前任务和成就进度
+- 完成任务自动解锁奖励
+
 ### 快捷键
 
 | 按键 | 功能 |
@@ -75,45 +107,65 @@
 | 滚轮 | 缩放画布 |
 | 鼠标中键拖拽 | 平移画布 |
 
+## 技术实现
+
+### 技术栈
+- **前端框架**: React 19 + TypeScript 5.9
+- **构建工具**: Vite 7
+- **状态管理**: Zustand (持久化存储)
+- **样式**: Tailwind CSS 4
+- **图标**: Lucide React
+- **桌面打包**: Electron 40 + electron-builder
+
+### 架构设计
+- **组件化设计**：UI 拆分为独立组件，职责单一
+- **状态集中管理**：使用 Zustand 管理全局状态，支持持久化
+- **类型安全**：TypeScript 严格模式，类型定义完整
+- **响应式布局**：适配不同屏幕尺寸
+
+### 核心算法
+- **任务进度追踪**：监听用户操作，自动更新任务进度
+- **成就解锁检测**：在关键操作时检查成就条件
+- **列车路径计算**：基于线路路径点计算列车运行轨迹
+- **画布坐标转换**：支持缩放、平移后的坐标映射
+
 ## 项目结构
 
 ```
 railway-designer/
-├── public/                 # 静态资源
-│   └── tutorial.html      # 使用教程
+├── electron/              # Electron 主进程
+│   └── main.cjs          # 主进程入口 (CommonJS)
+├── public/               # 静态资源
+│   ├── tutorial.html     # 使用教程
+│   └── vite.svg          # 应用图标
 ├── src/
-│   ├── components/        # React 组件
-│   │   ├── DesignCanvas.tsx    # 设计画布
-│   │   ├── TaskPanel.tsx       # 任务面板
-│   │   ├── Toolbar.tsx         # 工具栏
+│   ├── components/       # React 组件
+│   │   ├── DesignCanvas.tsx    # 设计画布 (核心交互)
+│   │   ├── TaskPanel.tsx       # 任务面板 (任务/成就/统计)
+│   │   ├── Toolbar.tsx         # 工具栏 (线路/站点/操作)
 │   │   └── TrainSimulation.tsx # 列车模拟
-│   ├── constants/         # 常量配置
-│   │   └── cityStyles.ts  # 城市风格配置
-│   ├── store/             # 状态管理
-│   │   └── gameStore.ts   # 游戏状态
-│   ├── types/             # TypeScript 类型
-│   │   └── index.ts       # 类型定义
-│   ├── App.tsx           # 主应用组件
-│   ├── App.css           # 应用样式
-│   ├── index.css         # 全局样式
-│   └── main.tsx          # 应用入口
-├── index.html            # HTML 模板
-├── package.json          # 项目配置
-├── tsconfig.json         # TypeScript 配置
-├── vite.config.ts        # Vite 配置
-├── start.bat             # Windows 启动脚本
-└── README.md             # 项目说明
+│   ├── constants/        # 常量配置
+│   │   └── cityStyles.ts       # 城市风格配置
+│   ├── store/            # 状态管理
+│   │   └── gameStore.ts        # Zustand 状态存储
+│   ├── types/            # TypeScript 类型
+│   │   └── index.ts            # 类型定义
+│   ├── App.tsx          # 主应用组件
+│   ├── App.css          # 应用样式
+│   ├── index.css        # 全局样式
+│   └── main.tsx         # 应用入口
+├── dist/                 # 前端构建输出
+├── dist-electron/        # Electron 打包输出
+│   ├── 轨道线路图设计器 Setup 1.0.0.exe
+│   └── 轨道线路图设计器_v1.0.0_便携版.exe
+├── index.html           # HTML 模板
+├── package.json         # 项目配置
+├── tsconfig.json        # TypeScript 配置
+├── vite.config.ts       # Vite 配置
+└── README.md            # 项目说明
 ```
 
-## 技术栈
-
-- **前端框架**: React 19 + TypeScript
-- **构建工具**: Vite 7
-- **状态管理**: Zustand
-- **样式**: Tailwind CSS 4
-- **图标**: Lucide React
-
-## 开发
+## 开发命令
 
 ```bash
 # 安装依赖
@@ -122,8 +174,23 @@ npm install
 # 启动开发服务器
 npm run dev
 
+# Electron 开发模式
+npm run electron:dev
+
 # 构建生产版本
 npm run build
+
+# 打包 Windows 应用
+npm run electron:build:win
+
+# 打包 macOS 应用
+npm run electron:build:mac
+
+# 打包 Linux 应用
+npm run electron:build:linux
+
+# 代码检查
+npm run lint
 
 # 预览生产构建
 npm run preview
