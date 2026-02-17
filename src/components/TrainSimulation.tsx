@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useGameStore } from '../store/gameStore';
-import type { Station, Line, Position } from '../types';
+import type { Station, Line, Position, LinePath } from '../types';
 
 interface TrainSimulationProps {
   lines: Line[];
@@ -11,14 +11,67 @@ interface TrainSimulationProps {
 
 interface Train {
   id: string;
-  position: Position;
-  angle: number;
   lineId: string;
-  currentStationIndex: number;
+  currentPathIndex: number;
   progress: number;
   speed: number;
-  direction: 1 | -1; // 1: 正向, -1: 反向
+  direction: 1 | -1;
+  position: Position;
+  angle: number;
 }
+
+const getDistance = (p1: Position, p2: Position): number => {
+  return Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+};
+
+const calculatePathLength = (points: Position[]): number => {
+  let length = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    length += getDistance(points[i], points[i + 1]);
+  }
+  return length;
+};
+
+const getPointOnPath = (path: LinePath, progress: number): { position: Position; angle: number } => {
+  const points = path.points;
+  if (points.length < 2) {
+    return { position: points[0] || { x: 0, y: 0 }, angle: 0 };
+  }
+
+  const totalLength = calculatePathLength(points);
+  const targetLength = totalLength * progress;
+  
+  let currentLength = 0;
+  
+  for (let i = 0; i < points.length - 1; i++) {
+    const segmentLength = getDistance(points[i], points[i + 1]);
+    
+    if (currentLength + segmentLength >= targetLength) {
+      const segmentProgress = (targetLength - currentLength) / segmentLength;
+      const position = {
+        x: points[i].x + (points[i + 1].x - points[i].x) * segmentProgress,
+        y: points[i].y + (points[i + 1].y - points[i].y) * segmentProgress
+      };
+      const angle = Math.atan2(
+        points[i + 1].y - points[i].y,
+        points[i + 1].x - points[i].x
+      ) * 180 / Math.PI;
+      return { position, angle };
+    }
+    
+    currentLength += segmentLength;
+  }
+  
+  const lastPoint = points[points.length - 1];
+  const secondLastPoint = points[points.length - 2];
+  return {
+    position: lastPoint,
+    angle: Math.atan2(
+      lastPoint.y - secondLastPoint.y,
+      lastPoint.x - secondLastPoint.x
+    ) * 180 / Math.PI
+  };
+};
 
 const TrainSimulation: React.FC<TrainSimulationProps> = ({ lines, stations, zoom, viewOffset }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,59 +80,85 @@ const TrainSimulation: React.FC<TrainSimulationProps> = ({ lines, stations, zoom
   const hasInitialized = useRef(false);
   const { isPlaying } = useGameStore();
 
-  // 获取线路的站点顺序（根据终点站设置）
-  const getOrderedStations = (line: Line): Station[] => {
-    const lineStations = line.stations
-      .map(id => stations.find(s => s.id === id))
-      .filter((s): s is Station => s !== undefined);
-
-    if (lineStations.length < 2) return lineStations;
-
-    // 如果有终点站设置，按终点站排序
-    if (line.startTerminus && line.endTerminus) {
-      const startIdx = lineStations.findIndex(s => s.id === line.startTerminus);
-      const endIdx = lineStations.findIndex(s => s.id === line.endTerminus);
-
-      if (startIdx !== -1 && endIdx !== -1) {
-        // 重新排序站点，使起点站在前，终点站在后
-        const ordered: Station[] = [];
-        let currentIdx = startIdx;
-
-        // 从起点开始，按顺序收集站点
-        while (currentIdx !== endIdx) {
-          ordered.push(lineStations[currentIdx]);
-          currentIdx = (currentIdx + 1) % lineStations.length;
-          // 防止无限循环
-          if (ordered.length > lineStations.length) break;
-        }
-        ordered.push(lineStations[endIdx]);
-        return ordered;
-      }
+  const getOrderedPaths = useCallback((line: Line): LinePath[] => {
+    if (!line.startTerminus || !line.endTerminus || line.paths.length === 0) {
+      return line.paths;
     }
 
-    return lineStations;
-  };
+    const startStation = stations.find(s => s.id === line.startTerminus);
+    const endStation = stations.find(s => s.id === line.endTerminus);
+    
+    if (!startStation || !endStation) {
+      return line.paths;
+    }
 
-  // 初始化列车
+    const ordered: LinePath[] = [];
+    let currentPos = startStation.position;
+    const usedPaths = new Set<string>();
+
+    while (true) {
+      const nextPath = line.paths.find(path => {
+        if (usedPaths.has(path.id)) return false;
+        const startPoint = path.points[0];
+        const endPoint = path.points[path.points.length - 1];
+        return (
+          (Math.abs(startPoint.x - currentPos.x) < 1 && Math.abs(startPoint.y - currentPos.y) < 1) ||
+          (Math.abs(endPoint.x - currentPos.x) < 1 && Math.abs(endPoint.y - currentPos.y) < 1)
+        );
+      });
+
+      if (!nextPath) break;
+
+      usedPaths.add(nextPath.id);
+      
+      const startPoint = nextPath.points[0];
+      const isReversed = Math.abs(startPoint.x - currentPos.x) < 1 && Math.abs(startPoint.y - currentPos.y) < 1;
+      
+      if (isReversed) {
+        ordered.push(nextPath);
+        const endPoint = nextPath.points[nextPath.points.length - 1];
+        currentPos = endPoint;
+      } else {
+        const reversedPath: LinePath = {
+          ...nextPath,
+          points: [...nextPath.points].reverse()
+        };
+        ordered.push(reversedPath);
+        currentPos = nextPath.points[0];
+      }
+
+      if (Math.abs(currentPos.x - endStation.position.x) < 1 && 
+          Math.abs(currentPos.y - endStation.position.y) < 1) {
+        break;
+      }
+
+      if (usedPaths.size >= line.paths.length) break;
+    }
+
+    return ordered;
+  }, [stations]);
+
   useEffect(() => {
     if (isPlaying && lines.length > 0 && !hasInitialized.current) {
       hasInitialized.current = true;
 
-      // 为每条有站点的线路创建一列列车
       const newTrains: Train[] = [];
       lines.forEach((line, index) => {
-        const orderedStations = getOrderedStations(line);
-
-        if (orderedStations.length >= 2) {
+        const orderedPaths = getOrderedPaths(line);
+        
+        if (orderedPaths.length > 0) {
+          const firstPath = orderedPaths[0];
+          const { position, angle } = getPointOnPath(firstPath, 0);
+          
           newTrains.push({
             id: `train-${line.id}`,
-            position: { ...orderedStations[0].position },
-            angle: 0,
             lineId: line.id,
-            currentStationIndex: 0,
+            currentPathIndex: 0,
             progress: 0,
-            speed: 0.008 + index * 0.002,
-            direction: 1
+            speed: 0.003 + index * 0.0005,
+            direction: 1,
+            position,
+            angle
           });
         }
       });
@@ -91,9 +170,8 @@ const TrainSimulation: React.FC<TrainSimulationProps> = ({ lines, stations, zoom
       hasInitialized.current = false;
       trainsRef.current = [];
     }
-  }, [isPlaying, lines, stations]);
+  }, [isPlaying, lines, getOrderedPaths]);
 
-  // 动画循环
   useEffect(() => {
     if (!isPlaying || lines.length === 0) return;
 
@@ -108,98 +186,62 @@ const TrainSimulation: React.FC<TrainSimulationProps> = ({ lines, stations, zoom
         const line = lines.find(l => l.id === train.lineId);
         if (!line) return train;
 
-        const orderedStations = getOrderedStations(line);
-        if (orderedStations.length < 2) return train;
+        const orderedPaths = getOrderedPaths(line);
+        if (orderedPaths.length === 0) return train;
 
         let newProgress = train.progress + train.speed * train.direction;
-        let newStationIndex = train.currentStationIndex;
-        let newPosition = { ...train.position };
-        let newAngle = train.angle;
+        let newPathIndex = train.currentPathIndex;
         let newDirection = train.direction;
 
-        // 检查是否到达站点
         if (newProgress >= 1) {
           newProgress = 0;
-          newStationIndex = train.currentStationIndex + 1;
+          newPathIndex++;
 
-          // 检查是否到达终点
-          if (newStationIndex >= orderedStations.length - 1) {
+          if (newPathIndex >= orderedPaths.length) {
             if (line.isLoop) {
-              // 环线：继续到起点
-              newStationIndex = 0;
+              newPathIndex = 0;
             } else {
-              // 往返线：反向运行
-              newStationIndex = orderedStations.length - 1;
+              newPathIndex = orderedPaths.length - 1;
               newDirection = -1;
+              newProgress = 1;
             }
           }
+        } else if (newProgress < 0) {
+          newProgress = 1;
+          newPathIndex--;
 
-          const currentStation = orderedStations[train.currentStationIndex];
-          const nextStation = orderedStations[newStationIndex];
-
-          if (nextStation) {
-            newPosition = { ...currentStation.position };
-            newAngle = Math.atan2(
-              nextStation.position.y - currentStation.position.y,
-              nextStation.position.x - currentStation.position.x
-            ) * 180 / Math.PI;
-          }
-        } else if (newProgress <= 0) {
-          // 反向运行时到达起点
-          newProgress = 0;
-          newStationIndex = train.currentStationIndex - 1;
-
-          if (newStationIndex <= 0) {
-            newStationIndex = 0;
-            newDirection = 1; // 转为正向
-          }
-
-          const currentStation = orderedStations[train.currentStationIndex];
-          const nextStation = orderedStations[newStationIndex];
-
-          if (nextStation) {
-            newPosition = { ...currentStation.position };
-            newAngle = Math.atan2(
-              nextStation.position.y - currentStation.position.y,
-              nextStation.position.x - currentStation.position.x
-            ) * 180 / Math.PI;
-          }
-        } else {
-          // 在当前区间平滑移动
-          const currentStation = orderedStations[train.currentStationIndex];
-          const nextStation = orderedStations[train.currentStationIndex + 1];
-
-          if (currentStation && nextStation) {
-            newPosition = {
-              x: currentStation.position.x + (nextStation.position.x - currentStation.position.x) * newProgress,
-              y: currentStation.position.y + (nextStation.position.y - currentStation.position.y) * newProgress
-            };
-            newAngle = Math.atan2(
-              nextStation.position.y - currentStation.position.y,
-              nextStation.position.x - currentStation.position.x
-            ) * 180 / Math.PI;
+          if (newPathIndex < 0) {
+            if (line.isLoop) {
+              newPathIndex = orderedPaths.length - 1;
+            } else {
+              newPathIndex = 0;
+              newDirection = 1;
+              newProgress = 0;
+            }
           }
         }
 
+        const currentPath = orderedPaths[newPathIndex];
+        if (!currentPath) return train;
+
+        const { position, angle } = getPointOnPath(currentPath, newProgress);
+
         return {
           ...train,
-          position: newPosition,
-          angle: newAngle,
-          currentStationIndex: newStationIndex,
+          currentPathIndex: newPathIndex,
           progress: newProgress,
-          direction: newDirection
+          direction: newDirection,
+          position,
+          angle
         };
       });
 
-      // 清空画布
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 应用变换
       ctx.save();
       ctx.translate(viewOffset.x, viewOffset.y);
       ctx.scale(zoom, zoom);
 
-      // 绘制列车
       trainsRef.current.forEach(train => {
         const line = lines.find(l => l.id === train.lineId);
         if (!line) return;
@@ -208,19 +250,16 @@ const TrainSimulation: React.FC<TrainSimulationProps> = ({ lines, stations, zoom
         ctx.translate(train.position.x, train.position.y);
         ctx.rotate((train.angle * Math.PI) / 180);
 
-        // 列车主体
         ctx.fillStyle = line.color;
         ctx.beginPath();
         ctx.roundRect(-10, -6, 20, 12, 3);
         ctx.fill();
 
-        // 车窗
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.roundRect(-6, -4, 8, 8, 2);
         ctx.fill();
 
-        // 车灯
         ctx.fillStyle = '#fbbf24';
         ctx.beginPath();
         ctx.arc(4, -2, 1.5, 0, Math.PI * 2);
@@ -242,7 +281,7 @@ const TrainSimulation: React.FC<TrainSimulationProps> = ({ lines, stations, zoom
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isPlaying, lines, stations, zoom, viewOffset]);
+  }, [isPlaying, lines, stations, zoom, viewOffset, getOrderedPaths]);
 
   if (!isPlaying) return null;
 

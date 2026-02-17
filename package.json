@@ -3,7 +3,7 @@
   "productName": "轨道线路图设计器",
   "description": "一个专为小朋友设计的地铁线路图创作工具",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "author": "Railway Designer Team",
   "main": "electron/main.cjs",
@@ -73,23 +73,27 @@
           "arch": ["x64"]
         }
       ],
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}_v${version}_${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "轨道线路图设计器"
+      "shortcutName": "轨道线路图设计器",
+      "artifactName": "${productName}_v${version}_安装版.${ext}"
     },
     "portable": {
-      "artifactName": "轨道线路图设计器_v${version}_便携版.exe"
+      "artifactName": "${productName}_v${version}_便携版.${ext}"
     },
     "mac": {
-      "target": "dmg"
+      "target": "dmg",
+      "artifactName": "${productName}_v${version}_${arch}.${ext}"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "artifactName": "${productName}_v${version}_${arch}.${ext}"
     }
   }
 }
