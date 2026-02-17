@@ -13,11 +13,15 @@ import {
   Plus,
   Train,
   X,
-  Route
+  Route,
+  MapPin,
+  ArrowRight,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useGameStore } from '../store/gameStore';
 import type { LineStyle, StationStyle, Station, Position } from '../types';
-import { cityStyles, getDefaultLineColor } from '../constants/cityStyles';
+import { cityStyles } from '../constants/cityStyles';
 
 const stationStyles: { style: StationStyle; label: string; icon: string }[] = [
   { style: 'shmetro-basic', label: '普通站', icon: '●' },
@@ -34,7 +38,7 @@ const Toolbar: React.FC = () => {
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importData, setImportData] = useState('');
-  const [activeTab, setActiveTab] = useState<'tools' | 'lines' | 'stations'>('tools');
+  const [activeTab, setActiveTab] = useState<'tools' | 'lines' | 'stations' | 'overview'>('tools');
   const [showTerminusDialog, setShowTerminusDialog] = useState(false);
   const [startTerminus, setStartTerminus] = useState<string>('');
   const [endTerminus, setEndTerminus] = useState<string>('');
@@ -43,20 +47,26 @@ const Toolbar: React.FC = () => {
   const [trackStartStation, setTrackStartStation] = useState<string>('');
   const [trackEndStation, setTrackEndStation] = useState<string>('');
   const [trackLineId, setTrackLineId] = useState<string>('');
+  const [lineNameError, setLineNameError] = useState<string>('');
+  const [lineColorError, setLineColorError] = useState<string>('');
 
   const {
     selectedTool,
     selectedElementId,
     selectedElementType,
     selectedLineId,
+    highlightedLineId,
     isPlaying,
     currentProject,
     selectTool,
+    selectElement,
     createProject,
     addLine,
     removeLine,
     selectLine,
     setTerminus,
+    autoDetectTerminus,
+    setHighlightedLine,
     removeStation,
     startSimulation,
     stopSimulation,
@@ -76,25 +86,70 @@ const Toolbar: React.FC = () => {
     }
   };
 
-  const handleAddLine = () => {
-    if (newLineName.trim() && currentProject) {
-      // 检查是否已存在同名线路
+  const validateLineName = (name: string): boolean => {
+    if (!name.trim()) {
+      setLineNameError('线路名称不能为空');
+      return false;
+    }
+    if (currentProject) {
       const existingLine = currentProject.lines.find(
-        l => l.name.toLowerCase() === newLineName.trim().toLowerCase()
+        l => l.name.toLowerCase() === name.trim().toLowerCase()
       );
       if (existingLine) {
-        alert(`已存在名为"${newLineName.trim()}"的线路，请使用其他名称`);
-        return;
+        setLineNameError(`已存在名为"${name.trim()}"的线路`);
+        return false;
       }
+    }
+    setLineNameError('');
+    return true;
+  };
 
-      const style = cityStyles.find(s => s.id === selectedStyle);
-      const lineCount = currentProject.lines.length;
-      const defaultColor = style ? getDefaultLineColor(style.id, lineCount) : newLineColor;
+  const validateLineColor = (color: string): boolean => {
+    if (currentProject) {
+      const existingLine = currentProject.lines.find(
+        l => l.color.toLowerCase() === color.toLowerCase()
+      );
+      if (existingLine) {
+        setLineColorError(`已存在相同颜色的线路：${existingLine.name}`);
+        return false;
+      }
+    }
+    setLineColorError('');
+    return true;
+  };
 
-      addLine(newLineName.trim(), defaultColor, selectedStyle);
+  const handleAddLine = () => {
+    if (!validateLineName(newLineName) || !validateLineColor(newLineColor)) {
+      return;
+    }
+
+    if (newLineName.trim() && currentProject) {
+      addLine(newLineName.trim(), newLineColor, selectedStyle);
       setNewLineName('');
       setNewLineColor('#3B82F6');
+      setLineNameError('');
+      setLineColorError('');
       setShowAddLine(false);
+    }
+  };
+
+  const handleAutoDetectTerminus = () => {
+    if (!selectedLineId) return;
+    
+    const result = autoDetectTerminus(selectedLineId);
+    
+    if (result.startId && result.endId) {
+      if (result.startId === result.endId) {
+        setIsLoopLine(true);
+        setStartTerminus(result.startId);
+        setEndTerminus(result.startId);
+      } else {
+        setIsLoopLine(false);
+        setStartTerminus(result.startId);
+        setEndTerminus(result.endId);
+      }
+    } else {
+      alert('无法自动识别终点站，请手动选择。\n\n提示：终点站通常是线路中只连接一条轨道的站点。');
     }
   };
 
@@ -137,6 +192,8 @@ const Toolbar: React.FC = () => {
   };
 
   const handleDeleteSelected = () => {
+    if (isPlaying) return;
+    
     if (selectedElementId && selectedElementType === 'station') {
       removeStation(selectedElementId);
     } else if (selectedElementId && selectedElementType === 'path' && selectedLineId) {
@@ -158,35 +215,26 @@ const Toolbar: React.FC = () => {
     let newPoints: Position[] = [startPoint];
 
     if (shape === 'straight') {
-      // 直线：只有起点和终点
       newPoints = [startPoint, endPoint];
     } else if (shape === 'single-bend') {
-      // 一次折线：在中间某处转折
-      // 判断是水平转折还是垂直转折
       const dx = Math.abs(endPoint.x - startPoint.x);
       const dy = Math.abs(endPoint.y - startPoint.y);
 
       if (dx > dy) {
-        // 水平方向更长，先水平后垂直
         newPoints = [startPoint, { x: endPoint.x, y: startPoint.y }, endPoint];
       } else {
-        // 垂直方向更长，先垂直后水平
         newPoints = [startPoint, { x: startPoint.x, y: endPoint.y }, endPoint];
       }
     } else if (shape === 'double-bend') {
-      // 两次折线：在中间形成两个转折
       const midX = (startPoint.x + endPoint.x) / 2;
       const midY = (startPoint.y + endPoint.y) / 2;
 
-      // 判断主要方向
       const dx = Math.abs(endPoint.x - startPoint.x);
       const dy = Math.abs(endPoint.y - startPoint.y);
 
       if (dx > dy) {
-        // 水平为主，先水平到中点，垂直，再水平
         newPoints = [startPoint, { x: midX, y: startPoint.y }, { x: midX, y: endPoint.y }, endPoint];
       } else {
-        // 垂直为主，先垂直到中点，水平，再垂直
         newPoints = [startPoint, { x: startPoint.x, y: midY }, { x: endPoint.x, y: midY }, endPoint];
       }
     }
@@ -197,14 +245,12 @@ const Toolbar: React.FC = () => {
   const handleBuildTrack = () => {
     if (!currentProject || !trackStartStation || !trackEndStation || !trackLineId) return;
 
-    // 检查是否已存在相同的轨道（相同的起点、终点和线路）
     const startStation = currentProject.stations.find(s => s.id === trackStartStation);
     const endStation = currentProject.stations.find(s => s.id === trackEndStation);
     const line = currentProject.lines.find(l => l.id === trackLineId);
 
     if (!startStation || !endStation || !line) return;
 
-    // 检查是否已存在连接这两个站点的路径（同名同色检查）
     const existingPath = line.paths.find(path => {
       const pathPoints = path.points;
       if (pathPoints.length < 2) return false;
@@ -222,14 +268,11 @@ const Toolbar: React.FC = () => {
       return;
     }
 
-    // 检查站点是否已经在该线路中，如果不在则添加
     const startInLine = line.stations.includes(startStation.id);
     const endInLine = line.stations.includes(endStation.id);
 
-    // 创建轨道连接
     addLinePath(trackLineId, [startStation.position, endStation.position]);
 
-    // 将站点添加到线路中（如果不在的话）
     if (!startInLine || !endInLine) {
       const { updateLine } = useGameStore.getState();
       const updatedStations = [...line.stations];
@@ -238,7 +281,6 @@ const Toolbar: React.FC = () => {
       updateLine(line.id, { stations: updatedStations });
     }
 
-    // 更新站点的线路列表（支持多线路）
     if (!startStation.lines.includes(trackLineId)) {
       const { updateStation } = useGameStore.getState();
       updateStation(startStation.id, { lines: [...startStation.lines, trackLineId] });
@@ -248,11 +290,52 @@ const Toolbar: React.FC = () => {
       updateStation(endStation.id, { lines: [...endStation.lines, trackLineId] });
     }
 
-    // 关闭对话框并重置状态
     setShowTrackDialog(false);
     setTrackStartStation('');
     setTrackEndStation('');
     setTrackLineId('');
+  };
+
+  const getLineStations = (lineId: string): Station[] => {
+    if (!currentProject) return [];
+    const line = currentProject.lines.find(l => l.id === lineId);
+    if (!line) return [];
+    return line.stations
+      .map(id => currentProject.stations.find(s => s.id === id))
+      .filter((s): s is Station => s !== undefined);
+  };
+
+  const getOrderedStations = (lineId: string): Station[] => {
+    const lineStations = getLineStations(lineId);
+    if (!currentProject) return lineStations;
+    
+    const line = currentProject.lines.find(l => l.id === lineId);
+    if (!line || !line.startTerminus || !line.endTerminus || lineStations.length < 2) {
+      return lineStations;
+    }
+
+    const startIdx = lineStations.findIndex(s => s.id === line.startTerminus);
+    const endIdx = lineStations.findIndex(s => s.id === line.endTerminus);
+
+    if (startIdx === -1 || endIdx === -1) {
+      return lineStations;
+    }
+
+    const ordered: Station[] = [];
+    let currentIdx = startIdx;
+    const visited = new Set<string>();
+
+    while (!visited.has(currentIdx.toString())) {
+      visited.add(currentIdx.toString());
+      ordered.push(lineStations[currentIdx]);
+      
+      if (currentIdx === endIdx) break;
+      
+      currentIdx = (currentIdx + 1) % lineStations.length;
+      if (ordered.length > lineStations.length) break;
+    }
+
+    return ordered;
   };
 
   const currentStyle = cityStyles.find(s => s.id === selectedStyle);
@@ -310,17 +393,17 @@ const Toolbar: React.FC = () => {
       {/* Tabs */}
       {currentProject && (
         <div className="flex border-b border-gray-200">
-          {(['tools', 'lines', 'stations'] as const).map((tab) => (
+          {(['tools', 'lines', 'stations', 'overview'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
+              className={`flex-1 py-2 text-xs font-medium transition-colors ${
                 activeTab === tab
                   ? 'text-blue-600 border-b-2 border-blue-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'tools' ? '工具' : tab === 'lines' ? '线路' : '站点'}
+              {tab === 'tools' ? '工具' : tab === 'lines' ? '线路' : tab === 'stations' ? '站点' : '总览'}
             </button>
           ))}
         </div>
@@ -567,12 +650,16 @@ const Toolbar: React.FC = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={handleDeleteSelected}
-                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors"
+                      disabled={isPlaying}
+                      className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
                       删除
                     </button>
                   </div>
+                  {isPlaying && (
+                    <p className="text-xs text-gray-400 mt-2">模拟运行时无法编辑</p>
+                  )}
                 </div>
               )}
 
@@ -583,21 +670,24 @@ const Toolbar: React.FC = () => {
                   <div className="space-y-2">
                     <button
                       onClick={() => handleChangePathShape('straight')}
-                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      disabled={isPlaying}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="text-lg">➖</span>
                       <span className="text-sm">直线</span>
                     </button>
                     <button
                       onClick={() => handleChangePathShape('single-bend')}
-                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      disabled={isPlaying}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="text-lg">└</span>
                       <span className="text-sm">一次折线</span>
                     </button>
                     <button
                       onClick={() => handleChangePathShape('double-bend')}
-                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                      disabled={isPlaying}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="text-lg">├</span>
                       <span className="text-sm">两次折线</span>
@@ -605,6 +695,122 @@ const Toolbar: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'overview' && (
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase">线路总览</h3>
+                {highlightedLineId && (
+                  <button
+                    onClick={() => setHighlightedLine(null)}
+                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                  >
+                    <EyeOff className="w-3 h-3" />
+                    显示全部
+                  </button>
+                )}
+              </div>
+              
+              {currentProject.lines.map((line) => {
+                const orderedStations = getOrderedStations(line.id);
+                const isHighlighted = highlightedLineId === line.id;
+                
+                return (
+                  <div
+                    key={line.id}
+                    className={`rounded-lg border-2 transition-all ${
+                      isHighlighted 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-200 bg-white'
+                    }`}
+                  >
+                    <div 
+                      className="p-3 cursor-pointer"
+                      onClick={() => setHighlightedLine(isHighlighted ? null : line.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: line.color }}
+                          />
+                          <span className="text-sm font-medium">{line.name}</span>
+                          {line.isLoop && (
+                            <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                              环线
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">{line.stations.length}站</span>
+                          {isHighlighted ? (
+                            <Eye className="w-4 h-4 text-blue-500" />
+                          ) : (
+                            <EyeOff className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {orderedStations.length > 0 && (
+                      <div className="px-3 pb-3 border-t border-gray-100 pt-2">
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {orderedStations.map((station, index) => {
+                            const isStart = station.id === line.startTerminus;
+                            const isEnd = station.id === line.endTerminus && !line.isLoop;
+                            const isTerminus = isStart || isEnd;
+
+                            return (
+                              <div key={station.id} className="flex items-center gap-2">
+                                <div className="flex items-center justify-center w-5">
+                                  {isTerminus ? (
+                                    <div
+                                      className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                                      style={{ backgroundColor: line.color }}
+                                    >
+                                      {isStart ? '起' : '终'}
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="w-3 h-3 rounded-full border-2"
+                                      style={{ 
+                                        borderColor: line.color,
+                                        backgroundColor: station.isTransfer ? 'white' : line.color
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <span className={`text-xs flex-1 ${
+                                  isTerminus ? 'font-semibold text-gray-800' : 'text-gray-600'
+                                }`}>
+                                  {station.name}
+                                </span>
+                                {station.isTransfer && (
+                                  <span className="text-xs text-blue-500">换乘</span>
+                                )}
+                                {index < orderedStations.length - 1 && (
+                                  <ArrowRight className="w-3 h-3 text-gray-300 flex-shrink-0" />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {line.startTerminus && line.endTerminus && !line.isLoop && (
+                          <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                            <div className="flex justify-between">
+                              <span>始发站: {currentProject.stations.find(s => s.id === line.startTerminus)?.name}</span>
+                              <span>终点站: {currentProject.stations.find(s => s.id === line.endTerminus)?.name}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -688,29 +894,43 @@ const Toolbar: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  线路名称
+                  线路名称 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={newLineName}
-                  onChange={(e) => setNewLineName(e.target.value)}
+                  onChange={(e) => {
+                    setNewLineName(e.target.value);
+                    validateLineName(e.target.value);
+                  }}
                   placeholder="例如：2号线"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    lineNameError ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 />
+                {lineNameError && (
+                  <p className="text-xs text-red-500 mt-1">{lineNameError}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  线路颜色
+                  线路颜色 <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
                     value={newLineColor}
-                    onChange={(e) => setNewLineColor(e.target.value)}
+                    onChange={(e) => {
+                      setNewLineColor(e.target.value);
+                      validateLineColor(e.target.value);
+                    }}
                     className="w-12 h-10 rounded cursor-pointer"
                   />
                   <span className="text-sm text-gray-600">{newLineColor}</span>
                 </div>
+                {lineColorError && (
+                  <p className="text-xs text-red-500 mt-1">{lineColorError}</p>
+                )}
               </div>
               {currentStyle && (
                 <div>
@@ -718,29 +938,44 @@ const Toolbar: React.FC = () => {
                     预设颜色
                   </label>
                   <div className="grid grid-cols-6 gap-1">
-                    {currentStyle.colors.map((color) => (
-                      <button
-                        key={color.name}
-                        onClick={() => setNewLineColor(color.color)}
-                        className="w-full aspect-square rounded-md border border-gray-200 hover:scale-110 transition-transform"
-                        style={{ backgroundColor: color.color }}
-                        title={color.name}
-                      />
-                    ))}
+                    {currentStyle.colors.map((color) => {
+                      const isUsed = currentProject?.lines.some(l => l.color.toLowerCase() === color.color.toLowerCase());
+                      return (
+                        <button
+                          key={color.name}
+                          onClick={() => {
+                            setNewLineColor(color.color);
+                            validateLineColor(color.color);
+                          }}
+                          disabled={isUsed}
+                          className={`w-full aspect-square rounded-md border border-gray-200 transition-transform ${
+                            isUsed 
+                              ? 'opacity-40 cursor-not-allowed' 
+                              : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: color.color }}
+                          title={color.name + (isUsed ? ' (已使用)' : '')}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
             <div className="flex gap-2 mt-6">
               <button
-                onClick={() => setShowAddLine(false)}
+                onClick={() => {
+                  setShowAddLine(false);
+                  setLineNameError('');
+                  setLineColorError('');
+                }}
                 className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
               >
                 取消
               </button>
               <button
                 onClick={handleAddLine}
-                disabled={!newLineName.trim()}
+                disabled={!newLineName.trim() || !!lineNameError || !!lineColorError}
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 font-medium"
               >
                 添加
@@ -838,6 +1073,16 @@ const Toolbar: React.FC = () => {
               const lineStations = line?.stations.map(id => currentProject.stations.find(s => s.id === id)).filter((s): s is Station => s !== undefined) || [];
               return (
                 <div className="space-y-4">
+                  <button
+                    onClick={handleAutoDetectTerminus}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    自动识别终点站
+                  </button>
+                  
+                  <div className="text-center text-xs text-gray-400">或手动选择</div>
+                  
                   <div>
                     <label className="flex items-center gap-2 cursor-pointer mb-4">
                       <input

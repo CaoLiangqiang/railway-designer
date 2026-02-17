@@ -1,337 +1,175 @@
 # 轨道线路图设计器 - 设计文档
 
-## 1. 系统架构
+## 版本: v1.1.0
 
-### 1.1 整体架构
+## 1. 设计目标
 
+### 1.1 目标用户
+- 主要用户：6-12岁的小朋友
+- 次要用户：家长（协助使用）
+
+### 1.2 设计原则
+- **简单易用**：界面简洁，操作直观
+- **趣味性强**：任务系统引导探索，成就系统激励学习
+- **视觉友好**：色彩丰富，图标清晰
+- **安全可控**：模拟运行时禁止编辑，防止误操作
+
+## 2. 界面设计
+
+### 2.1 布局结构
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      应用层 (Electron)                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │  Toolbar     │  │ DesignCanvas │  │  TaskPanel   │       │
-│  │  (工具栏)     │  │  (设计画布)   │  │  (任务面板)   │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-│                           │                                 │
-│  ┌────────────────────────┴────────────────────────┐       │
-│  │              TrainSimulation                     │       │
-│  │               (列车模拟)                          │       │
-│  └─────────────────────────────────────────────────┘       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                      状态管理层 (Zustand)                    │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │                  gameStore.ts                        │   │
-│  │  - 项目管理 (currentProject)                         │   │
-│  │  - 选中状态 (selectedTool, selectedElementId)        │   │
-│  │  - 线路数据 (lines: Line[])                          │   │
-│  │  - 站点数据 (stations: Station[])                    │   │
-│  │  - 任务系统 (tasks, achievements)                    │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-┌─────────────────────────────────────────────────────────────┐
-│                      数据持久化层                           │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │              localStorage (自动保存)                 │   │
-│  │  - 项目数据持久化                                     │   │
-│  │  - 任务进度持久化                                     │   │
-│  │  - 成就状态持久化                                     │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+│                      顶部标题栏                              │
+├──────────────┬──────────────────────────────┬───────────────┤
+│              │                              │               │
+│   左侧工具栏   │         中央画布              │   右侧面板    │
+│   (288px)    │        (自适应宽度)            │   (288px)    │
+│              │                              │               │
+└──────────────┴──────────────────────────────┴───────────────┘
 ```
 
-### 1.2 数据流
+### 2.2 工具栏设计
 
-```
-用户操作 → 组件事件 → Store Action → 状态更新 → 组件重渲染
-                ↓
-         localStorage (自动保存)
-```
+#### Tab导航
+- **工具**: 选择、平移、缩放、模拟控制
+- **线路**: 城市风格、线路列表、颜色预设
+- **站点**: 站点类型、轨道建设、选中元素操作
+- **总览**: 所有线路站点列表、高亮显示
 
-## 2. 数据模型
+#### 面板元素
+- 卡片式布局
+- 清晰的标题和分组
+- 一致的按钮样式
+- 状态反馈（禁用、高亮）
 
-### 2.1 核心类型定义
+### 2.3 画布设计
+- SVG渲染站点和轨道
+- Canvas渲染列车动画
+- 支持缩放（50%-200%）
+- 支持平移拖拽
 
+### 2.4 任务面板设计
+- 任务列表：进度条、完成状态
+- 成就列表：图标、名称、解锁状态
+- 统计信息：站点数、线路数、模拟次数
+
+## 3. 交互设计
+
+### 3.1 站点操作
+| 操作 | 方式 | 反馈 |
+|------|------|------|
+| 添加站点 | 点击画布 | 站点出现，名称输入框 |
+| 选择站点 | 点击站点 | 蓝色边框高亮 |
+| 移动站点 | 拖拽站点 | 实时跟随鼠标 |
+| 删除站点 | Delete键 | 确认后删除 |
+
+### 3.2 轨道操作
+| 操作 | 方式 | 反馈 |
+|------|------|------|
+| 建设轨道 | 对话框选择 | 轨道出现 |
+| 选择轨道 | 点击轨道 | 蓝色高亮 |
+| 改变形状 | 点击按钮 | 实时更新 |
+| 删除轨道 | Delete键 | 立即删除 |
+
+### 3.3 线路操作
+| 操作 | 方式 | 反馈 |
+|------|------|------|
+| 创建线路 | 对话框输入 | 线路卡片出现 |
+| 选择线路 | 点击卡片 | 卡片高亮 |
+| 设置终点站 | 对话框选择 | 显示起点/终点标记 |
+| 高亮线路 | 点击总览卡片 | 其他线路变灰 |
+
+### 3.4 模拟控制
+| 操作 | 方式 | 反馈 |
+|------|------|------|
+| 开始模拟 | 点击按钮 | 列车开始运行 |
+| 停止模拟 | 点击按钮 | 列车消失 |
+| 禁止编辑 | 自动 | 按钮变灰，提示信息 |
+
+## 4. 视觉设计
+
+### 4.1 色彩方案
+- 主色：蓝色系 (#3B82F6)
+- 成功：绿色 (#22C55E)
+- 警告：黄色 (#EAB308)
+- 危险：红色 (#EF4444)
+- 中性：灰色系
+
+### 4.2 字体
+- 标题：系统默认，加粗
+- 正文：14px
+- 辅助：12px
+- 站点名称：11px
+
+### 4.3 图标
+- 使用 Lucide React 图标库
+- 统一尺寸：16px / 20px / 24px
+- 一致的线条粗细
+
+### 4.4 动画
+- 过渡时间：150ms / 200ms
+- 缓动函数：ease-in-out
+- 列车动画：60fps
+
+## 5. 数据验证设计
+
+### 5.1 线路验证
+- 名称：非空、唯一（不区分大小写）
+- 颜色：必选、唯一
+- 实时验证，即时反馈
+
+### 5.2 站点验证
+- 名称：非空、全局唯一
+- 位置：画布范围内
+
+### 5.3 轨道验证
+- 起点/终点：必须不同
+- 线路：必须选择
+- 唯一性：同一线路两站点间只能有一条
+
+## 6. 状态设计
+
+### 6.1 全局状态
 ```typescript
-// 项目
-interface DesignProject {
-  id: string;
-  name: string;
-  style: LineStyle;      // 城市风格
-  lines: Line[];
-  stations: Station[];
-  canvasOffset: Position;
-  zoom: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// 线路
-interface Line {
-  id: string;
-  name: string;
-  color: string;
-  style: LineStyle;
-  stations: string[];     // 站点ID列表
-  paths: LinePath[];      // 轨道路径
-  startStationId: string | null;
-  endStationId: string | null;
-  isLoop: boolean;
-}
-
-// 轨道路径
-interface LinePath {
-  id: string;
-  points: Position[];     // 路径点坐标
-  type: 'straight' | 'single-bend' | 'double-bend';
-}
-
-// 站点
-interface Station {
-  id: string;
-  name: string;
-  position: Position;
-  style: StationStyle;
-  lines: string[];        // 所属线路ID列表
-  isTransfer: boolean;
-  isTerminus: boolean;
-}
-
-// 坐标
-interface Position {
-  x: number;
-  y: number;
+{
+  currentProject: DesignProject | null,
+  selectedTool: ToolType | null,
+  selectedElementId: string | null,
+  selectedElementType: 'station' | 'line' | 'path' | null,
+  selectedLineId: string | null,
+  highlightedLineId: string | null,
+  isPlaying: boolean,
+  tasks: Task[],
+  achievements: Achievement[],
+  unlockedItems: string[]
 }
 ```
 
-### 2.2 数据关系
+### 6.2 状态持久化
+- 使用 Zustand persist 中间件
+- 存储键：railway-designer-storage
+- 自动保存项目和进度
 
-```
-Project 1 ─── N Line
-  │              │
-  │              ├── N LinePath
-  │              │
-  │              └── N Station (通过 stations 数组关联)
-  │
-  └── N Station
-```
+## 7. 错误处理设计
 
-## 3. 组件设计
+### 7.1 用户操作错误
+- 重名/重色：显示错误提示
+- 无效操作：按钮禁用
+- 数据格式错误：导入失败提示
 
-### 3.1 组件层次结构
+### 7.2 系统错误
+- 控制台日志记录
+- 用户友好提示
+- 自动恢复机制
 
-```
-App.tsx
-├── Toolbar (左侧工具栏)
-│   ├── 线路管理区域
-│   ├── 站点类型选择
-│   ├── 轨道建设按钮
-│   └── 选中元素操作
-│
-├── DesignCanvas (中间画布)
-│   ├── SVG 画布
-│   │   ├── 网格背景
-│   │   ├── 线路渲染 (renderLine)
-│   │   ├── 轨道渲染 (renderAllPaths)
-│   │   └── 站点渲染 (renderStation)
-│   └── 交互层
-│       ├── 点击添加站点
-│       ├── 拖拽移动站点
-│       ├── 选中轨道
-│       └── 键盘事件处理
-│
-├── TaskPanel (右侧面板)
-│   ├── 任务列表
-│   ├── 成就列表
-│   └── 统计信息
-│
-└── TrainSimulation (列车模拟)
-    └── 列车动画渲染
-```
-
-### 3.2 组件职责
-
-| 组件 | 职责 |
-|------|------|
-| Toolbar | 提供线路、站点管理功能，显示选中元素操作 |
-| DesignCanvas | 渲染画布，处理鼠标/键盘交互 |
-| TaskPanel | 显示任务进度、成就状态、项目统计 |
-| TrainSimulation | 列车动画模拟 |
-
-## 4. 状态管理
-
-### 4.1 Store 结构
-
-```typescript
-interface GameState {
-  // 项目数据
-  currentProject: DesignProject | null;
-  
-  // 选中状态
-  selectedTool: ToolType | null;
-  selectedElementId: string | null;
-  selectedElementType: 'station' | 'line' | 'path' | null;
-  selectedLineId: string | null;
-  
-  // 运行状态
-  isPlaying: boolean;
-  
-  // 任务成就
-  tasks: Task[];
-  achievements: Achievement[];
-  unlockedItems: string[];
-}
-```
-
-### 4.2 核心 Actions
-
-| Action | 功能 |
-|--------|------|
-| createProject | 创建新项目 |
-| addLine | 添加线路 |
-| removeLine | 删除线路 |
-| addStation | 添加站点 |
-| removeStation | 删除站点（同时删除相连轨道）|
-| moveStation | 移动站点（同时更新相连轨道）|
-| addLinePath | 添加轨道 |
-| removeLinePath | 删除轨道 |
-| updateLinePath | 更新轨道形状 |
-| selectElement | 选中元素 |
-| startSimulation | 开始模拟 |
-| stopSimulation | 停止模拟 |
-
-## 5. 核心算法
-
-### 5.1 轨道形状计算
-
-#### 直线
-```
-起点 ──────────────── 终点
-points = [start, end]
-```
-
-#### 一次折线
-```
-起点 ───────┐
-            │
-            └────── 终点
-
-如果 |dx| > |dy|:
-  points = [start, (end.x, start.y), end]
-否则:
-  points = [start, (start.x, end.y), end]
-```
-
-#### 两次折线
-```
-起点 ───┐
-        │
-        ├─── 中点 ───┐
-        │            │
-        └────────────┘
-                       └────── 终点
-
-中点 = ((start.x + end.x) / 2, (start.y + end.y) / 2)
-
-如果 |dx| > |dy|:
-  points = [start, (mid.x, start.y), (mid.x, end.y), end]
-否则:
-  points = [start, (start.x, mid.y), (end.x, mid.y), end]
-```
-
-### 5.2 多条轨道线条粗细计算
-
-```typescript
-const pathCount = getPathCountBetweenStations(startPos, endPos);
-const lineWidth = Math.max(3, baseLineWidth - (pathCount - 1) * 2);
-```
-
-### 5.3 列车路径计算
-
-1. 获取线路的所有轨道路径
-2. 按顺序连接路径点
-3. 计算总长度和每段长度
-4. 根据运行时间和速度计算当前位置
-
-## 6. 交互设计
-
-### 6.1 鼠标交互
-
-| 操作 | 功能 |
-|------|------|
-| 左键点击空白处 | 添加站点（选中站点工具时）|
-| 左键点击站点 | 选中站点 |
-| 左键拖拽站点 | 移动站点 |
-| 左键点击轨道 | 选中轨道 |
-| 中键拖拽 | 平移画布 |
-| 滚轮 | 缩放画布 |
-
-### 6.2 键盘交互
-
-| 按键 | 功能 |
-|------|------|
-| Delete / Backspace | 删除选中的站点或轨道 |
-| Esc | 取消选择 |
-
-## 7. 视觉设计
-
-### 7.1 城市风格配置
-
-```typescript
-interface CityStyle {
-  id: string;
-  name: string;
-  lineWidth: number;
-  stationSize: number;
-  colors: string[];
-}
-```
-
-### 7.2 站点样式
-
-- **普通站**：圆形，白色填充，灰色边框
-- **换乘站**：双圆环，白色填充，灰色边框
-
-### 7.3 选中状态
-
-- 站点：蓝色边框加粗
-- 轨道：蓝色高亮，线条加粗
-
-## 8. 性能优化
+## 8. 性能设计
 
 ### 8.1 渲染优化
-- 使用 SVG 渲染，硬件加速
-- 轨道线条使用 `pointer-events: stroke` 优化点击检测
+- SVG元素按需渲染
+- Canvas动画使用requestAnimationFrame
+- 避免不必要的重渲染
 
-### 8.2 状态更新优化
-- 使用 Zustand 的细粒度更新
-- 避免不必要的状态复制
-
-### 8.3 存储优化
-- localStorage 自动保存，防抖处理
-
-## 9. 错误处理
-
-### 9.1 数据校验
-- 线路名称唯一性校验
-- 站点名称唯一性校验
-- 轨道重复性校验
-
-### 9.2 用户提示
-- 使用 alert 显示错误信息
-- 选中状态视觉反馈
-
-## 10. 扩展性设计
-
-### 10.1 新增城市风格
-1. 在 `cityStyles.ts` 添加配置
-2. 在任务系统中添加解锁条件
-
-### 10.2 新增轨道形状
-1. 在类型定义中添加新形状
-2. 在 `handleChangePathShape` 中添加计算逻辑
-
-### 10.3 新增任务/成就
-1. 在 `gameStore.ts` 初始状态中添加
-2. 在相应操作中添加进度更新逻辑
+### 8.2 数据优化
+- 状态更新批量处理
+- 持久化节流
+- 大文件导入分片处理

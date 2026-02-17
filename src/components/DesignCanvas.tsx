@@ -28,6 +28,7 @@ const DesignCanvas: React.FC = () => {
     selectedElementId,
     selectedElementType,
     selectedLineId,
+    highlightedLineId,
     isPlaying,
     addStation,
     selectElement,
@@ -146,20 +147,21 @@ const DesignCanvas: React.FC = () => {
 
   const handleStationMouseDown = useCallback((e: React.MouseEvent, stationId: string) => {
     e.stopPropagation();
-    if (selectedTool?.type === 'select') {
+    if (selectedTool?.type === 'select' && !isPlaying) {
       selectElement(stationId, 'station');
       setIsDraggingStation(stationId);
     }
-  }, [selectedTool, selectElement]);
+  }, [selectedTool, selectElement, isPlaying]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const { removeStation, removeLinePath, selectedElementId, selectedElementType, currentProject } = useGameStore.getState();
+    const { removeStation, removeLinePath, selectedElementId, selectedElementType, currentProject, isPlaying } = useGameStore.getState();
+
+    if (isPlaying) return;
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
       if (selectedElementId && selectedElementType === 'station') {
         removeStation(selectedElementId);
       } else if (selectedElementId && selectedElementType === 'path' && currentProject) {
-        // 找到轨道所属的线路
         const lineWithPath = currentProject.lines.find(line =>
           line.paths.some(path => path.id === selectedElementId)
         );
@@ -182,13 +184,16 @@ const DesignCanvas: React.FC = () => {
     const isSelected = selectedElementId === station.id && selectedElementType === 'station';
     const style = getCityStyle(currentProject?.lines.find(l => l.id === station.lines[0])?.style || 'shmetro');
     const size = style?.stationSize || 12;
+    
+    const isOther = highlightedLineId && !station.lines.includes(highlightedLineId);
 
     if (station.isTransfer) {
       return (
         <g
           key={station.id}
           transform={`translate(${station.position.x}, ${station.position.y})`}
-          className="cursor-move"
+          className={isPlaying ? 'cursor-not-allowed' : 'cursor-move'}
+          opacity={isOther ? 0.2 : 1}
           onMouseDown={(e) => handleStationMouseDown(e, station.id)}
         >
           <circle
@@ -229,7 +234,8 @@ const DesignCanvas: React.FC = () => {
       <g
         key={station.id}
         transform={`translate(${station.position.x}, ${station.position.y})`}
-        className="cursor-move"
+        className={isPlaying ? 'cursor-not-allowed' : 'cursor-move'}
+        opacity={isOther ? 0.2 : 1}
         onMouseDown={(e) => handleStationMouseDown(e, station.id)}
       >
         <circle
@@ -290,22 +296,20 @@ const DesignCanvas: React.FC = () => {
     return null;
   };
 
-  // 单独渲染所有轨道（用于处理多条轨道的情况）
   const renderAllPaths = () => {
     if (!currentProject) return null;
 
     return currentProject.lines.map(line => {
       const style = getCityStyle(line.style);
       const baseLineWidth = style?.lineWidth || 8;
+      const isOther = highlightedLineId && highlightedLineId !== line.id;
 
       return line.paths.map(path => {
         const isSelected = selectedElementId === path.id && selectedElementType === 'path';
         const startPos = path.points[0];
         const endPos = path.points[path.points.length - 1];
 
-        // 计算两个站点之间的轨道数量
         const pathCount = getPathCountBetweenStations(startPos, endPos);
-        // 根据轨道数量调整线条粗细
         const lineWidth = Math.max(3, baseLineWidth - (pathCount - 1) * 2);
 
         return (
@@ -320,10 +324,11 @@ const DesignCanvas: React.FC = () => {
             strokeWidth={isSelected ? lineWidth + 4 : lineWidth}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="cursor-pointer hover:opacity-80"
+            opacity={isOther ? 0.2 : 1}
+            className={isPlaying ? '' : 'cursor-pointer hover:opacity-80'}
             onClick={(e) => {
               e.stopPropagation();
-              if (selectedTool?.type === 'select') {
+              if (selectedTool?.type === 'select' && !isPlaying) {
                 selectElement(path.id, 'path');
               }
             }}

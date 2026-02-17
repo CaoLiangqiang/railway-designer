@@ -19,8 +19,9 @@ interface GameStore {
   currentProject: DesignProject | null;
   selectedTool: ToolType | null;
   selectedElementId: string | null;
-  selectedElementType: 'station' | 'line' | null;
+  selectedElementType: 'station' | 'line' | 'path' | null;
   selectedLineId: string | null;
+  highlightedLineId: string | null;
   isPlaying: boolean;
   tasks: Task[];
   achievements: Achievement[];
@@ -40,6 +41,8 @@ interface GameStore {
   removeLine: (id: string) => void;
   selectLine: (id: string | null) => void;
   setTerminus: (lineId: string, startStationId: string | null, endStationId: string | null, isLoop: boolean) => void;
+  autoDetectTerminus: (lineId: string) => { startId: string | null; endId: string | null };
+  setHighlightedLine: (lineId: string | null) => void;
 
   addStation: (station: Omit<Station, 'id'>, addToLine?: boolean) => void;
   updateStation: (id: string, updates: Partial<Station>) => void;
@@ -195,6 +198,7 @@ export const useGameStore = create<GameStore>()(
       selectedElementId: null,
       selectedElementType: null,
       selectedLineId: null,
+      highlightedLineId: null,
       isPlaying: false,
       tasks: initialTasks,
       achievements: initialAchievements,
@@ -381,6 +385,73 @@ export const useGameStore = create<GameStore>()(
 
       selectLine: (id: string | null) => {
         set({ selectedLineId: id });
+      },
+
+      autoDetectTerminus: (lineId: string): { startId: string | null; endId: string | null } => {
+        const { currentProject } = get();
+        if (!currentProject) return { startId: null, endId: null };
+
+        const line = currentProject.lines.find(l => l.id === lineId);
+        if (!line || line.stations.length < 2 || line.paths.length < 1) {
+          return { startId: null, endId: null };
+        }
+
+        const stationConnectionCount = new Map<string, number>();
+        line.stations.forEach(stationId => {
+          stationConnectionCount.set(stationId, 0);
+        });
+
+        line.paths.forEach(path => {
+          const startPos = path.points[0];
+          const endPos = path.points[path.points.length - 1];
+          
+          line.stations.forEach(stationId => {
+            const station = currentProject.stations.find(s => s.id === stationId);
+            if (station) {
+              if (Math.abs(station.position.x - startPos.x) < 1 && Math.abs(station.position.y - startPos.y) < 1) {
+                stationConnectionCount.set(stationId, (stationConnectionCount.get(stationId) || 0) + 1);
+              }
+              if (Math.abs(station.position.x - endPos.x) < 1 && Math.abs(station.position.y - endPos.y) < 1) {
+                stationConnectionCount.set(stationId, (stationConnectionCount.get(stationId) || 0) + 1);
+              }
+            }
+          });
+        });
+
+        const endpoints: string[] = [];
+        stationConnectionCount.forEach((count, stationId) => {
+          if (count === 1) {
+            endpoints.push(stationId);
+          }
+        });
+
+        if (endpoints.length === 0) {
+          return { startId: null, endId: null };
+        }
+
+        if (endpoints.length === 1) {
+          return { startId: endpoints[0], endId: endpoints[0] };
+        }
+
+        if (endpoints.length === 2) {
+          const station1 = currentProject.stations.find(s => s.id === endpoints[0]);
+          const station2 = currentProject.stations.find(s => s.id === endpoints[1]);
+          
+          if (station1 && station2) {
+            if (station1.position.y < station2.position.y || 
+                (station1.position.y === station2.position.y && station1.position.x < station2.position.x)) {
+              return { startId: endpoints[0], endId: endpoints[1] };
+            } else {
+              return { startId: endpoints[1], endId: endpoints[0] };
+            }
+          }
+        }
+
+        return { startId: endpoints[0] || null, endId: endpoints[1] || null };
+      },
+
+      setHighlightedLine: (lineId: string | null) => {
+        set({ highlightedLineId: lineId });
       },
 
       setTerminus: (lineId: string, startStationId: string | null, endStationId: string | null, isLoop: boolean) => {
@@ -659,7 +730,7 @@ export const useGameStore = create<GameStore>()(
         set({ selectedTool: tool });
       },
 
-      selectElement: (id: string | null, type: 'station' | 'line' | null) => {
+      selectElement: (id: string | null, type: 'station' | 'line' | 'path' | null) => {
         set({ selectedElementId: id, selectedElementType: type });
       },
 
